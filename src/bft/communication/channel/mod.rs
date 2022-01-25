@@ -11,15 +11,16 @@ mod async_channel_mpmc;
 
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use std::future::Future;
 use std::task::{Poll, Context};
-use std::collections::LinkedList;
 
-use chrono::offset::Utc;
 use futures::select;
+use parking_lot::Mutex;
+use chrono::offset::Utc;
+use futures_timer::Delay;
 use event_listener::Event;
 use futures::future::FusedFuture;
-use parking_lot::Mutex;
 
 use crate::bft::error::*;
 use crate::bft::async_runtime as rt;
@@ -156,7 +157,7 @@ pub enum MessageChannelRx<S, O, P> {
 
 pub struct RequestBatcherShared<O> {
     event: Event,
-    batch: Mutex<LinkedList<StoredMessage<RequestMessage<O>>>>,
+    batch: Mutex<Vec<StoredMessage<RequestMessage<O>>>>,
 }
 
 pub struct RequestBatcher<O> {
@@ -165,30 +166,30 @@ pub struct RequestBatcher<O> {
 }
 
 impl<O: Send + 'static> RequestBatcher<O> {
+    const BASE_DURATION: Duration = Duration::from_millis(1);
+    const MULTIPLIER: u32 = 2;
+
     pub fn spawn(mut self, max_batch_size: usize) {
         // handle events to prepare new batch
         rt::spawn(async move {
             loop {
+                let mut sleep = Self::BASE_DURATION;
                 let batch = 'new_batch: loop {
                     // check if batch is ready...
                     {
                         let mut current_batch = 'spin_lock: loop {
-                            match self.requests.batch.try_lock() {
-                                Some(batch) => break 'spin_lock batch,
-                                None => (),
+                            if let Some(batch) = self.requests.batch.try_lock() {
+                                break 'spin_lock batch;
                             }
-                            rt::yield_now().await;
+                            Delay::new(sleep).await;
+                            sleep = sleep.saturating_mul(Self::MULTIPLIER);
                         };
 
                         if current_batch.len() > 0 {
                             let cap = std::cmp::min(current_batch.len(), max_batch_size);
                             let mut batch = Vec::with_capacity(cap);
 
-                            for _i in 0..cap {
-                                let request = match current_batch.pop_front() {
-                                    Some(r) => r,
-                                    _ => unreachable!(),
-                                };
+                            for request in current_batch.drain(..cap) {
                                 batch.push(request);
                             }
 
@@ -230,7 +231,7 @@ pub fn new_message_channel<S, O, P>(
         let (reqbatch_tx, reqbatch_rx) = new_bounded(bound);
         let shared = Arc::new(RequestBatcherShared {
             event: Event::new(),
-            batch: Mutex::new(LinkedList::new()),
+            batch: Mutex::new(Vec::new()),
         });
 
         let batcher = Some(RequestBatcher {
@@ -283,7 +284,7 @@ impl<S, O, P> MessageChannelTx<S, O, P> {
 
                                 'spin_lock: loop {
                                     if let Some(mut current_batch) = requests.batch.try_lock() {
-                                        current_batch.push_back(m);
+                                        current_batch.push(m);
                                         break 'spin_lock;
                                     }
                                     rt::yield_now().await;
