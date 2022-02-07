@@ -186,17 +186,17 @@ pub enum ConsensusStatus<'a> {
 
 macro_rules! extract_msg {
     ($g:expr, $q:expr) => {
-        extract_msg!({}, $g, $q)
+        extract_msg!({}, ConsensusPollStatus::Recv, $g, $q)
     };
 
-    ($opt:block, $g:expr, $q:expr) => {
+    ($opt:block, $rsp:expr, $g:expr, $q:expr) => {
         if let Some(stored) = tbo_pop_message::<ConsensusMessage>($q) {
             $opt
             let (header, message) = stored.into_inner();
             ConsensusPollStatus::NextMessage(header, message)
         } else {
             *$g = false;
-            ConsensusPollStatus::Recv
+            $rsp
         }
     };
 }
@@ -350,6 +350,7 @@ where
             ProtoPhase::Init if self.tbo.get_queue => {
                 extract_msg!(
                     { self.phase = ProtoPhase::PrePreparing; },
+                    ConsensusPollStatus::TryProposeAndRecv,
                     &mut self.tbo.get_queue,
                     &mut self.tbo.pre_prepares
                 )
@@ -374,6 +375,7 @@ where
                 if self.missing_requests.is_empty() {
                     extract_msg!(
                         { self.phase = ProtoPhase::Preparing(1); },
+                        ConsensusPollStatus::Recv,
                         &mut self.tbo.get_queue,
                         &mut self.tbo.prepares
                     )
