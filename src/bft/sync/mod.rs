@@ -1012,6 +1012,8 @@ where
             .unwrap_or(proposed);
 
         // store new proposed value in the log
+        //
+        // TODO: move this to `Consensus::finalize_view_change`
         let (digest, header, message) = {
             //
             // NOTE: yeah I know this code is ugly innit :^)
