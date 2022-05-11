@@ -77,9 +77,9 @@ pub enum ConsensusPollStatus<O> {
 pub struct TboQueue<O> {
     curr_seq: SeqNo,
     get_queue: bool,
-        pre_prepares: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
-        prepares: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
-        commits: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
+    pre_prepares: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
+    prepares: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
+    commits: VecDeque<VecDeque<StoredMessage<ConsensusMessage<O>>>>,
 }
 
 impl<O> Orderable for TboQueue<O> {
