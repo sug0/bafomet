@@ -1,16 +1,10 @@
-<p align="center">
-<img width="500" height="500" src="resources/logo.png">
-</p>
-<p align="center">
-A rusty, efficient Byzantine fault tolerant middleware library/framework.
-<!-- TODO: include crates.io, docs.rs links here, etc -->
-</p>
+Evil Byzantine fault tolerant middleware library/framework!
 
 ---
 
 # A bit of context
 
-FeBFT is an efficient BFT SMR middleware library implementation, directly descendant
+`bafomet` is an efficient BFT SMR middleware library implementation, directly descendant
 of protocols such as PBFT and BFT-SMaRt, where a static group of `n = 3f + 1` nodes
 are responsible for replicating a service, that is usually exposed via a RPC interface.
 The properties of these systems are such that despite the failure of (up to) `f` nodes
@@ -19,7 +13,7 @@ will continue operating as usual.
 
 Different from prior art in this field, usually implemented in Java, Rust was
 the language of choice to implement all the typical SMR sub-protocols present
-in FeBFT. Many people are (rightfully so!) excited about the use of Rust
+in `bafomet`. Many people are (rightfully so!) excited about the use of Rust
 in new (and even older) software, because of its safety properties associated
 with the many compile time checks present in the compiler, that are able to
 hunt down common use-after-free as well as concurrency related bugs.
@@ -38,7 +32,7 @@ consult the following papers:
 * Bessani, Alysson, Joao Sousa, and Eduardo EP Alchieri. "State machine replication for the masses with BFT-SMART." 2014 44th Annual IEEE/IFIP International Conference on Dependable Systems and Networks. IEEE, 2014.
 
 <!-- TODO: include link to thesis -->
-To read more about the architecture of FeBFT, you can check out my MsC thesis.
+To read more about the architecture of `bafomet`, you can check out my MsC thesis.
 
 # How to use this library?
 
@@ -66,7 +60,7 @@ pub trait Service {
 
 You may want to check out [client-local.rs](examples/client-local.rs) and
 [replica-local.rs](examples/replica-local.rs) for examples of how to write
-services utilizing FeBFT. Run them with:
+services utilizing `bafomet`. Run them with:
 
 ```
 # Start the service replicas in a terminal window
@@ -92,4 +86,4 @@ The code is organized as follows:
 * `src/bft/ordering` defines code for sequence numbers resistant to overflows.
 
 Other modules should be somewhat self explanatory, especially if you read
-the documentation generated with `cargo doc --features expose_impl` for FeBFT.
+the documentation generated with `cargo doc --features expose_impl` for `bafomet`.

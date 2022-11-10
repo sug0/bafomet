@@ -1,17 +1,16 @@
 [package]
-name = "febft"
+name = "bafomet"
 version = "0.1.0"
 description = "A BFT SMR library in Rust!"
-authors = ["Tiago Carvalho <up201605259@fc.up.pt>"]
-edition = "2018"
+authors = ["Tiago Carvalho <sugoiuguu@tfwno.gf>"]
+edition = "2021"
 license = "MIT"
-homepage = "https://github.com/febft/febft"
-repository = "https://github.com/febft/febft"
-documentation = "https://docs.rs/febft"
+homepage = "https://github.com/sug0/bafomet"
+repository = "https://github.com/sug0/bafomet"
+documentation = "https://docs.rs/bafomet"
 readme = "README.md"
 
 [features]
-# Consult the crate documentation for more details on the features.
 default = [
     "async_runtime_tokio",
     "threadpool_crossbeam",

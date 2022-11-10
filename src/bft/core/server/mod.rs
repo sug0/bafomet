@@ -1,4 +1,4 @@
-//! Contains the server side core protocol logic of `febft`.
+//! Contains the server side core protocol logic of `bafomet`.
 
 use std::time::Duration;
 
@@ -35,7 +35,7 @@ enum ReplicaPhase {
 }
 
 /// This struct contains information related with an
-/// active `febft` view.
+/// active `bafomet` view.
 #[cfg_attr(feature = "serialize_serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone)]
 pub struct ViewInfo {
@@ -81,7 +81,7 @@ impl ViewInfo {
     }
 }
 
-/// Represents a replica in `febft`.
+/// Represents a replica in `bafomet`.
 pub struct Replica<S: Service> {
     phase: ReplicaPhase,
     // this value is primarily used to switch from
@@ -120,7 +120,7 @@ where
     Request<S>: Send + Clone + 'static,
     Reply<S>: Send + 'static,
 {
-    /// Bootstrap a replica in `febft`.
+    /// Bootstrap a replica in `bafomet`.
     pub async fn bootstrap(cfg: ReplicaConfig<S>) -> Result<Self> {
         let ReplicaConfig {
             next_consensus_seq,

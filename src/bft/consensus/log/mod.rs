@@ -1,4 +1,4 @@
-//! A module to manage the `febft` message log.
+//! A module to manage the `bafomet` message log.
 
 use std::cmp::Ordering;
 use std::marker::PhantomData;

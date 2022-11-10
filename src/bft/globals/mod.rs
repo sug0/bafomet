@@ -69,7 +69,7 @@ impl<T: Sync + 'static> Global<T> {
     /// This method is potentially unsafe to call, because the reference
     /// may dangle if we deinitialize the library, by dropping `InitGuard`.
     /// In practice, it should always be safe, since dropping the `InitGuard`
-    /// is the last thing users of `febft` should do.
+    /// is the last thing users of `bafomet` should do.
     #[inline]
     pub fn get(&'static self) -> Option<&'static T> {
         if self.flag.test() {

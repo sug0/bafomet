@@ -1,4 +1,4 @@
-//! Contains the client side core protocol logic of `febft`.
+//! Contains the client side core protocol logic of `bafomet`.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -23,7 +23,7 @@ struct ClientData<P> {
     ready: Mutex<HashMap<Digest, P>>,
 }
 
-/// Represents a client node in `febft`.
+/// Represents a client node in `bafomet`.
 // TODO: maybe make the clone impl more efficient
 pub struct Client<D: SharedData> {
     data: Arc<ClientData<D::Reply>>,
@@ -99,7 +99,7 @@ where
     // TODO: tune this value, e.g. maybe change to 3mins?
     const GC_DUR: Duration = Duration::from_secs(30);
 
-    /// Bootstrap a client in `febft`.
+    /// Bootstrap a client in `bafomet`.
     pub async fn bootstrap(cfg: ClientConfig) -> Result<Self> {
         let ClientConfig { node: node_config } = cfg;
 
@@ -136,7 +136,7 @@ where
     }
 
     /// Updates the replicated state of the application running
-    /// on top of `febft`.
+    /// on top of `bafomet`.
     //
     // TODO: request timeout
     pub async fn update(&mut self, operation: D::Request) -> D::Reply {

@@ -1,4 +1,4 @@
-//! Module to manage timeouts in `febft`.
+//! Module to manage timeouts in `bafomet`.
 //!
 //! This includes on-going client requests, as well as CST and
 //! view change messages exchanged between replicas.

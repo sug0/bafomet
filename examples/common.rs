@@ -9,17 +9,17 @@ use rustls::{
 };
 use serde::{Deserialize, Serialize};
 
-use febft::bft::collections::HashMap;
-use febft::bft::communication::message::{Message, SystemMessage};
-use febft::bft::communication::serialize::SharedData;
-use febft::bft::communication::{Node, NodeConfig, NodeId};
-use febft::bft::core::client::{self, Client};
-use febft::bft::core::server::{Replica, ReplicaConfig};
-use febft::bft::crypto::signature::{KeyPair, PublicKey};
-use febft::bft::error::*;
-use febft::bft::executable::Service;
-use febft::bft::ordering::SeqNo;
-use febft::bft::threadpool::ThreadPool;
+use bafomet::bft::collections::HashMap;
+use bafomet::bft::communication::message::{Message, SystemMessage};
+use bafomet::bft::communication::serialize::SharedData;
+use bafomet::bft::communication::{Node, NodeConfig, NodeId};
+use bafomet::bft::core::client::{self, Client};
+use bafomet::bft::core::server::{Replica, ReplicaConfig};
+use bafomet::bft::crypto::signature::{KeyPair, PublicKey};
+use bafomet::bft::error::*;
+use bafomet::bft::executable::Service;
+use bafomet::bft::ordering::SeqNo;
+use bafomet::bft::threadpool::ThreadPool;
 
 #[macro_export]
 macro_rules! addr {
@@ -32,7 +32,7 @@ macro_rules! addr {
 #[macro_export]
 macro_rules! map {
     ( $($key:expr => $value:expr),+ ) => {{
-        let mut m = ::febft::bft::collections::hash_map();
+        let mut m = ::bafomet::bft::collections::hash_map();
         $(
             m.insert($key, $value);
         )+

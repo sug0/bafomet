@@ -1,4 +1,4 @@
-//! The consensus algorithm used for `febft` and other logic.
+//! The consensus algorithm used for `bafomet` and other logic.
 
 pub mod log;
 
@@ -159,10 +159,10 @@ pub struct Consensus<S: Service> {
 pub enum ConsensusStatus<'a> {
     /// A particular node tried voting twice.
     VotedTwice(NodeId),
-    /// A `febft` quorum still hasn't made a decision
+    /// A `bafomet` quorum still hasn't made a decision
     /// on a client request to be executed.
     Deciding,
-    /// A `febft` quorum decided on the execution of
+    /// A `bafomet` quorum decided on the execution of
     /// the batch of requests with the given digests.
     Decided(&'a [Digest]),
 }

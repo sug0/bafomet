@@ -1,4 +1,4 @@
-//! This crate, `febft`, implements a byzantine fault tolerant state machine
+//! This crate, `bafomet`, implements a byzantine fault tolerant state machine
 //! replication library in Rust, whilst taking advantage of the feature flags
 //! in `Cargo.toml` to provide a super flexible, modular API.
 //!

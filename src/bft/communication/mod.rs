@@ -1,4 +1,4 @@
-//! Communication primitives for `febft`, such as wire message formats.
+//! Communication primitives for `bafomet`, such as wire message formats.
 
 pub mod channel;
 pub mod message;

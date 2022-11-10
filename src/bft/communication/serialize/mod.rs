@@ -1,4 +1,4 @@
-//! This module is responsible for serializing wire messages in `febft`.
+//! This module is responsible for serializing wire messages in `bafomet`.
 //!
 //! All relevant types transmitted over the wire are `serde` aware, if
 //! this feature is enabled with `serialize_serde`. Slightly more exotic

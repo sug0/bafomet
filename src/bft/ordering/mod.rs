@@ -1,4 +1,4 @@
-//! Ordering messages of the sub-protocols in `febft`.
+//! Ordering messages of the sub-protocols in `bafomet`.
 
 use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::collections::VecDeque;

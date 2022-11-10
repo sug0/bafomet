@@ -5,9 +5,9 @@ use std::time::Duration;
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use futures_timer::Delay;
 
-use febft::bft::async_runtime as rt;
-use febft::bft::communication::socket::{self, Socket};
-use febft::bft::{init, InitConfig};
+use bafomet::bft::async_runtime as rt;
+use bafomet::bft::communication::socket::{self, Socket};
+use bafomet::bft::{init, InitConfig};
 
 fn main() {
     let conf = InitConfig { async_threads: 4 };

@@ -1,4 +1,4 @@
-//! This module contains the implementation details of `febft`.
+//! This module contains the implementation details of `bafomet`.
 //!
 //! By default, it is hidden to the user, unless explicitly enabled
 //! with the feature flag `expose_impl`.

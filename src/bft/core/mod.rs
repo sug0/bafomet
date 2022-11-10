@@ -1,4 +1,4 @@
-//! Contains the core protocol logic of `febft`.
+//! Contains the core protocol logic of `bafomet`.
 
 pub mod client;
 pub mod server;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::bft::error::*;
 
 /// This struct contains the system parameters of
-/// a replica or client in `febft`, i.e. `n` and `f`
+/// a replica or client in `bafomet`, i.e. `n` and `f`
 /// such that `n >= 3*f + 1`.
 #[cfg_attr(feature = "serialize_serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone)]

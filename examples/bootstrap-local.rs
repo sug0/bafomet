@@ -7,13 +7,13 @@ use std::time::Duration;
 use futures_timer::Delay;
 use rand_core::{OsRng, RngCore};
 
-use febft::bft::async_runtime as rt;
-use febft::bft::collections::HashMap;
-use febft::bft::communication::message::{RequestMessage, SystemMessage};
-use febft::bft::communication::NodeId;
-use febft::bft::crypto::signature::{KeyPair, PublicKey};
-use febft::bft::threadpool;
-use febft::bft::{init, InitConfig};
+use bafomet::bft::async_runtime as rt;
+use bafomet::bft::collections::HashMap;
+use bafomet::bft::communication::message::{RequestMessage, SystemMessage};
+use bafomet::bft::communication::NodeId;
+use bafomet::bft::crypto::signature::{KeyPair, PublicKey};
+use bafomet::bft::threadpool;
+use bafomet::bft::{init, InitConfig};
 
 fn main() {
     let conf = InitConfig {
