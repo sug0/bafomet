@@ -10,9 +10,9 @@ use std::io::{Read, Write};
 
 use smallvec::SmallVec;
 
-use crate::bft::error::*;
-use crate::bft::crypto::hash::{Context, Digest};
 use crate::bft::communication::message::SystemMessage;
+use crate::bft::crypto::hash::{Context, Digest};
+use crate::bft::error::*;
 
 /// Marker trait containing the types used by the application,
 /// as well as routines to serialize the application data.
@@ -33,12 +33,17 @@ pub trait SharedData {
     type Reply;
 
     /// Serialize a wire message into the writer `W`.
-    fn serialize_message<W>(w: W, m: &SystemMessage<Self::State, Self::Request, Self::Reply>) -> Result<()>
+    fn serialize_message<W>(
+        w: W,
+        m: &SystemMessage<Self::State, Self::Request, Self::Reply>,
+    ) -> Result<()>
     where
         W: Write;
 
     /// Deserialize a wire message from a reader `R`.
-    fn deserialize_message<R>(r: R) -> Result<SystemMessage<Self::State, Self::Request, Self::Reply>>
+    fn deserialize_message<R>(
+        r: R,
+    ) -> Result<SystemMessage<Self::State, Self::Request, Self::Reply>>
     where
         R: Read;
 

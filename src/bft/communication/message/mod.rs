@@ -5,42 +5,23 @@ use std::io;
 use std::mem::MaybeUninit;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use smallvec::{
-    SmallVec,
-    Array,
-};
-use async_tls::{
-    server::TlsStream as TlsStreamSrv,
-    client::TlsStream as TlsStreamCli,
-};
-use futures::io::{
-    AsyncWriteExt,
-    AsyncWrite,
-};
+use async_tls::{client::TlsStream as TlsStreamCli, server::TlsStream as TlsStreamSrv};
+use futures::io::{AsyncWrite, AsyncWriteExt};
+use smallvec::{Array, SmallVec};
 
-use crate::bft::crypto::signature::{
-    Signature,
-    PublicKey,
-    KeyPair,
-};
-use crate::bft::crypto::hash::{
-    Context,
-    Digest,
-};
-use crate::bft::ordering::{
-    SeqNo,
-    Orderable,
-};
-use crate::bft::consensus::log::CollectData;
 use crate::bft::communication::socket::Socket;
-use crate::bft::executable::UpdateBatchReplies;
 use crate::bft::communication::NodeId;
-use crate::bft::timeouts::TimeoutKind;
-use crate::bft::sync::LeaderCollects;
+use crate::bft::consensus::log::CollectData;
+use crate::bft::crypto::hash::{Context, Digest};
+use crate::bft::crypto::signature::{KeyPair, PublicKey, Signature};
 use crate::bft::cst::RecoveryState;
 use crate::bft::error::*;
+use crate::bft::executable::UpdateBatchReplies;
+use crate::bft::ordering::{Orderable, SeqNo};
+use crate::bft::sync::LeaderCollects;
+use crate::bft::timeouts::TimeoutKind;
 
 /// Contains a system message as well as its respective header.
 #[cfg_attr(feature = "serialize_serde", derive(Serialize, Deserialize))]
@@ -266,7 +247,7 @@ impl<O> ViewChangeMessage<O> {
             _ => {
                 self.kind = kind;
                 None
-            },
+            }
         }
     }
 }
@@ -324,7 +305,7 @@ impl<S, O> CstMessage<S, O> {
             _ => {
                 self.kind = kind;
                 None
-            },
+            }
         }
     }
 }
@@ -451,7 +432,7 @@ impl ConsensusMessage {
             ConsensusMessageKind::PrePrepare(_) => None,
             ConsensusMessageKind::Prepare(d) | ConsensusMessageKind::Commit(d) => {
                 Some(&d == digest)
-            },
+            }
         }
     }
 
@@ -463,16 +444,13 @@ impl ConsensusMessage {
     /// Takes the proposed client requests embedded in this consensus message,
     /// if they are available.
     pub fn take_proposed_requests(&mut self) -> Option<Vec<Digest>> {
-        let kind = std::mem::replace(
-            &mut self.kind,
-            ConsensusMessageKind::PrePrepare(Vec::new()),
-        );
+        let kind = std::mem::replace(&mut self.kind, ConsensusMessageKind::PrePrepare(Vec::new()));
         match kind {
             ConsensusMessageKind::PrePrepare(v) => Some(v),
             _ => {
                 self.kind = kind;
                 None
-            },
+            }
         }
     }
 }
@@ -638,18 +616,12 @@ impl<'a> WireMessage<'a> {
     ) -> Self {
         let digest = digest
             // safety: digests have repr(transparent)
-            .map(|d| unsafe {std::mem::transmute(d) })
+            .map(|d| unsafe { std::mem::transmute(d) })
             // if payload length is 0
             .unwrap_or([0; Digest::LENGTH]);
         let signature = sk
             .map(|sk| {
-                let signature = Self::sign_parts(
-                    sk,
-                    from.into(),
-                    to.into(),
-                    nonce,
-                    &digest[..],
-                );
+                let signature = Self::sign_parts(sk, from.into(), to.into(), nonce, &digest[..]);
                 // safety: signatures have repr(transparent)
                 unsafe { std::mem::transmute(signature) }
             })
@@ -690,13 +662,7 @@ impl<'a> WireMessage<'a> {
         ctx.finish()
     }
 
-    fn sign_parts(
-        sk: &KeyPair,
-        from: u32,
-        to: u32,
-        nonce: u64,
-        payload: &[u8],
-    ) -> Signature {
+    fn sign_parts(sk: &KeyPair, from: u32, to: u32, nonce: u64, payload: &[u8]) -> Signature {
         let digest = Self::digest_parts(from, to, nonce, payload);
         // NOTE: unwrap() should always work, much like heap allocs
         // should always work
@@ -734,8 +700,7 @@ impl<'a> WireMessage<'a> {
     /// Checks for the correctness of the `WireMessage`. This implies
     /// checking its signature, if a `PublicKey` is provided.
     pub fn is_valid(&self, public_key: Option<&PublicKey>) -> bool {
-        let preliminary_check_failed =
-            self.header.version != WireMessage::CURRENT_VERSION
+        let preliminary_check_failed = self.header.version != WireMessage::CURRENT_VERSION
             || self.header.length != self.payload.len() as u64;
         if preliminary_check_failed {
             return false;
@@ -749,7 +714,8 @@ impl<'a> WireMessage<'a> {
                     self.header.to,
                     self.header.nonce,
                     &self.header.digest[..],
-                ).is_ok()
+                )
+                .is_ok()
             })
             .unwrap_or(true)
     }
@@ -791,38 +757,37 @@ impl<S, O, P> Message<S, O, P> {
     /// a `SystemMessage`.
     pub fn header(&self) -> Result<&Header> {
         match self {
-            Message::System(ref h, _) =>
-                Ok(h),
-            Message::ConnectedTx(_, _) =>
-                Err("Expected System found ConnectedTx")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::ConnectedRx(_, _) =>
-                Err("Expected System found ConnectedRx")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::DisconnectedTx(_) =>
-                Err("Expected System found DisconnectedTx")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::DisconnectedRx(_) =>
-                Err("Expected System found DisconnectedRx")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::ExecutionFinished(_) =>
-                Err("Expected System found ExecutionFinished")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::ExecutionFinishedWithAppstate(_, _) =>
+            Message::System(ref h, _) => Ok(h),
+            Message::ConnectedTx(_, _) => {
+                Err("Expected System found ConnectedTx").wrapped(ErrorKind::CommunicationMessage)
+            }
+            Message::ConnectedRx(_, _) => {
+                Err("Expected System found ConnectedRx").wrapped(ErrorKind::CommunicationMessage)
+            }
+            Message::DisconnectedTx(_) => {
+                Err("Expected System found DisconnectedTx").wrapped(ErrorKind::CommunicationMessage)
+            }
+            Message::DisconnectedRx(_) => {
+                Err("Expected System found DisconnectedRx").wrapped(ErrorKind::CommunicationMessage)
+            }
+            Message::ExecutionFinished(_) => Err("Expected System found ExecutionFinished")
+                .wrapped(ErrorKind::CommunicationMessage),
+            Message::ExecutionFinishedWithAppstate(_, _) => {
                 Err("Expected System found ExecutionFinishedWithAppstate")
-                    .wrapped(ErrorKind::CommunicationMessage),
-            Message::Timeout(_) =>
-                Err("Expected System found Timeout")
-                    .wrapped(ErrorKind::CommunicationMessage),
+                    .wrapped(ErrorKind::CommunicationMessage)
+            }
+            Message::Timeout(_) => {
+                Err("Expected System found Timeout").wrapped(ErrorKind::CommunicationMessage)
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::bft::communication::message::{WireMessage, Header};
-    use crate::bft::crypto::signature::Signature;
+    use crate::bft::communication::message::{Header, WireMessage};
     use crate::bft::crypto::hash::Digest;
+    use crate::bft::crypto::signature::Signature;
 
     #[test]
     fn test_header_serialize() {
@@ -837,10 +802,10 @@ mod tests {
             length: 0,
         };
         let mut buf = [0; Header::LENGTH];
-        old_header.serialize_into(&mut buf[..])
+        old_header
+            .serialize_into(&mut buf[..])
             .expect("Serialize failed");
-        let new_header = Header::deserialize_from(&buf[..])
-            .expect("Deserialize failed");
+        let new_header = Header::deserialize_from(&buf[..]).expect("Deserialize failed");
         assert_eq!(old_header, new_header);
     }
 }

@@ -1,6 +1,6 @@
 use std::fs;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use std::io::{Write, BufWriter};
 
 use itertools::Itertools;
 
@@ -15,7 +15,11 @@ fn generate_error_kinds() {
     // under src/bft/ into the ERROR_KIND_DST file,
     // erasing underscores, and setting title case for
     // words between them
-    fn generate(mut pbuf: &mut PathBuf, mut name_buf: &mut Vec<String>, mut buf: &mut BufWriter<fs::File>) {
+    fn generate(
+        mut pbuf: &mut PathBuf,
+        mut name_buf: &mut Vec<String>,
+        mut buf: &mut BufWriter<fs::File>,
+    ) {
         let dir_ents = fs::read_dir(&mut pbuf).unwrap();
 
         for ent in dir_ents {
@@ -75,11 +79,15 @@ fn generate_error_kinds() {
     };
     let mut name_buf = Vec::new();
 
-    writeln!(&mut buf, r#"/// Includes a list of all the errors reported by this
+    writeln!(
+        &mut buf,
+        r#"/// Includes a list of all the errors reported by this
 /// crate's modules. Generated automatically with `build.rs`.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
-pub enum ErrorKind {{"#).unwrap();
+pub enum ErrorKind {{"#
+    )
+    .unwrap();
     generate(&mut path_buf, &mut name_buf, &mut buf);
     writeln!(&mut buf, "}}").unwrap();
 }

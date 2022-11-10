@@ -1,16 +1,10 @@
-use std::pin::Pin;
 use std::future::Future;
-use std::task::{Poll, Context};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use async_channel::{
-    Sender,
-    Receiver,
-};
-use futures::stream::{
-    Stream,
-    FusedStream,
-};
+use async_channel::{Receiver, Sender};
 use futures::future::FusedFuture;
+use futures::stream::{FusedStream, Stream};
 
 use crate::bft::error::*;
 
@@ -63,9 +57,11 @@ impl<'a, T> Future for ChannelRxFut<'a, T> {
 
     #[inline]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<T>> {
-        Pin::new(&mut self.inner)
-            .poll_next(cx)
-            .map(|opt| opt.ok_or(Error::simple(ErrorKind::CommunicationChannelAsyncChannelMpmc)))
+        Pin::new(&mut self.inner).poll_next(cx).map(|opt| {
+            opt.ok_or(Error::simple(
+                ErrorKind::CommunicationChannelAsyncChannelMpmc,
+            ))
+        })
     }
 }
 

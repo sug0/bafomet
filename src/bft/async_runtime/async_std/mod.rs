@@ -1,5 +1,5 @@
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use crate::bft::error::*;
@@ -34,8 +34,6 @@ impl<T> Future for JoinHandle<T> {
     type Output = Result<T>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner)
-            .poll(cx)
-            .map(Ok)
+        Pin::new(&mut self.inner).poll(cx).map(Ok)
     }
 }

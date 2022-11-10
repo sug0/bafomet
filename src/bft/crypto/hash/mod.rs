@@ -7,7 +7,7 @@ mod ring_sha2;
 mod blake3_blake3;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::bft::error::*;
 
@@ -39,10 +39,14 @@ impl Context {
     pub fn new() -> Self {
         let inner = {
             #[cfg(feature = "crypto_hash_ring_sha2")]
-            { ring_sha2::Context::new() }
+            {
+                ring_sha2::Context::new()
+            }
 
             #[cfg(feature = "crypto_hash_blake3_blake3")]
-            { blake3_blake3::Context::new() }
+            {
+                blake3_blake3::Context::new()
+            }
         };
         Context { inner }
     }
@@ -63,20 +67,28 @@ impl Digest {
     /// The length of the `Digest` in bytes.
     pub const LENGTH: usize = {
         #[cfg(feature = "crypto_hash_ring_sha2")]
-        { ring_sha2::Digest::LENGTH }
+        {
+            ring_sha2::Digest::LENGTH
+        }
 
         #[cfg(feature = "crypto_hash_blake3_blake3")]
-        { blake3_blake3::Digest::LENGTH }
+        {
+            blake3_blake3::Digest::LENGTH
+        }
     };
 
     /// Constructs a `Digest` from a byte buffer of appropriate size.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let inner = {
             #[cfg(feature = "crypto_hash_ring_sha2")]
-            { ring_sha2::Digest::from_bytes(raw_bytes) }
+            {
+                ring_sha2::Digest::from_bytes(raw_bytes)
+            }
 
             #[cfg(feature = "crypto_hash_blake3_blake3")]
-            { blake3_blake3::Digest::from_bytes(raw_bytes) }
+            {
+                blake3_blake3::Digest::from_bytes(raw_bytes)
+            }
         }?;
         Ok(Digest { inner })
     }

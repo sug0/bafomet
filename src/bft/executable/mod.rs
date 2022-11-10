@@ -1,18 +1,15 @@
 //! User application execution business logic.
 
-use std::thread;
 use std::sync::mpsc;
+use std::thread;
 
-use crate::bft::error::*;
 use crate::bft::async_runtime as rt;
-use crate::bft::crypto::hash::Digest;
-use crate::bft::communication::NodeId;
-use crate::bft::communication::message::Message;
 use crate::bft::communication::channel::MessageChannelTx;
-use crate::bft::communication::serialize::{
-    //ReplicaDurability,
-    SharedData,
-};
+use crate::bft::communication::message::Message;
+use crate::bft::communication::serialize::SharedData;
+use crate::bft::communication::NodeId;
+use crate::bft::crypto::hash::Digest;
+use crate::bft::error::*;
 
 /// Represents a single client update request, to be executed.
 #[derive(Clone)]
@@ -53,7 +50,6 @@ enum ExecutionRequest<S, O> {
     // read the state of the service
     Read(NodeId),
 }
-
 
 /* NOTE: unused
 
@@ -98,11 +94,7 @@ pub trait Service {
 
     /// Process a user request, producing a matching reply,
     /// meanwhile updating the application state.
-    fn update(
-        &mut self,
-        state: &mut State<Self>,
-        request: Request<Self>,
-    ) -> Reply<Self>;
+    fn update(&mut self, state: &mut State<Self>, request: Request<Self>) -> Reply<Self>;
 }
 
 /// Stateful data of the task responsible for executing
@@ -127,13 +119,15 @@ where
 {
     /// Sets the current state of the execution layer to the given value.
     pub fn install_state(&mut self, state: State<S>, after: Vec<Request<S>>) -> Result<()> {
-        self.e_tx.send(ExecutionRequest::InstallState(state, after))
+        self.e_tx
+            .send(ExecutionRequest::InstallState(state, after))
             .simple(ErrorKind::Executable)
     }
 
     /// Queues a batch of requests `batch` for execution.
     pub fn queue_update(&mut self, batch: UpdateBatch<Request<S>>) -> Result<()> {
-        self.e_tx.send(ExecutionRequest::Update(batch))
+        self.e_tx
+            .send(ExecutionRequest::Update(batch))
             .simple(ErrorKind::Executable)
     }
 
@@ -141,11 +135,9 @@ where
     /// application state.
     ///
     /// This is useful during local checkpoints.
-    pub fn queue_update_and_get_appstate(
-        &mut self,
-        batch: UpdateBatch<Request<S>>,
-    ) -> Result<()> {
-        self.e_tx.send(ExecutionRequest::UpdateAndGetAppstate(batch))
+    pub fn queue_update_and_get_appstate(&mut self, batch: UpdateBatch<Request<S>>) -> Result<()> {
+        self.e_tx
+            .send(ExecutionRequest::UpdateAndGetAppstate(batch))
             .simple(ErrorKind::Executable)
     }
 }
@@ -194,7 +186,7 @@ where
                         for req in after {
                             exec.service.update(&mut exec.state, req);
                         }
-                    },
+                    }
                     ExecutionRequest::Update(batch) => {
                         let mut reply_batch = UpdateBatchReplies::with_capacity(batch.len());
 
@@ -210,7 +202,7 @@ where
                             let m = Message::ExecutionFinished(reply_batch);
                             system_tx.send(m).await.unwrap();
                         });
-                    },
+                    }
                     ExecutionRequest::UpdateAndGetAppstate(batch) => {
                         let mut reply_batch = UpdateBatchReplies::with_capacity(batch.len());
 
@@ -224,16 +216,14 @@ where
                         // deliver replies
                         let mut system_tx = exec.system_tx.clone();
                         rt::spawn(async move {
-                            let m = Message::ExecutionFinishedWithAppstate(
-                                reply_batch,
-                                cloned_state,
-                            );
+                            let m =
+                                Message::ExecutionFinishedWithAppstate(reply_batch, cloned_state);
                             system_tx.send(m).await.unwrap();
                         });
-                    },
+                    }
                     ExecutionRequest::Read(_peer_id) => {
                         unimplemented!()
-                    },
+                    }
                 }
             }
         });
@@ -250,7 +240,11 @@ impl<O> UpdateBatch<O> {
 
     /// Adds a new update request to the batch.
     pub fn add(&mut self, from: NodeId, digest: Digest, operation: O) {
-        self.inner.push(Update { from, digest, operation });
+        self.inner.push(Update {
+            from,
+            digest,
+            operation,
+        });
     }
 
     /// Returns the inner storage.
@@ -283,21 +277,27 @@ impl<O> Update<O> {
 }
 
 impl<P> UpdateBatchReplies<P> {
-/*
-    /// Returns a new, empty batch of replies.
-    pub fn new() -> Self {
-        Self { inner: Vec::new() }
-    }
-*/
+    /*
+        /// Returns a new, empty batch of replies.
+        pub fn new() -> Self {
+            Self { inner: Vec::new() }
+        }
+    */
 
     /// Returns a new, empty batch of replies, with the given capacity.
     pub fn with_capacity(n: usize) -> Self {
-        Self { inner: Vec::with_capacity(n) }
+        Self {
+            inner: Vec::with_capacity(n),
+        }
     }
 
     /// Adds a new update reply to the batch.
     pub fn add(&mut self, to: NodeId, digest: Digest, payload: P) {
-        self.inner.push(UpdateReply { to, digest, payload });
+        self.inner.push(UpdateReply {
+            to,
+            digest,
+            payload,
+        });
     }
 
     /// Returns the inner storage.

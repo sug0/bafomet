@@ -1,16 +1,10 @@
-use std::pin::Pin;
 use std::future::Future;
-use std::task::{Poll, Context};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures::channel::mpsc;
-use futures::stream::{
-    Stream,
-    FusedStream,
-};
-use futures::future::{
-    poll_fn,
-    FusedFuture,
-};
+use futures::future::{poll_fn, FusedFuture};
+use futures::stream::{FusedStream, Stream};
 
 use crate::bft::error::*;
 
@@ -54,9 +48,12 @@ impl<T> ChannelTx<T> {
         poll_fn(|cx| match self.inner.poll_ready(cx) {
             Poll::Ready(Ok(_)) => Poll::Ready(Ok(())),
             Poll::Ready(Err(e)) if e.is_full() => Poll::Pending,
-            Poll::Ready(_) => Poll::Ready(Err(Error::simple(ErrorKind::CommunicationChannelFuturesMpsc))),
+            Poll::Ready(_) => Poll::Ready(Err(Error::simple(
+                ErrorKind::CommunicationChannelFuturesMpsc,
+            ))),
             Poll::Pending => Poll::Pending,
-        }).await
+        })
+        .await
     }
 }
 

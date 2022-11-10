@@ -4,9 +4,9 @@
 //! script, as well as other useful extensions of the `std::result::Result`
 //! type, to work with our very own `Error` type.
 
-use std::io;
-use std::fmt;
 use std::error;
+use std::fmt;
+use std::io;
 use std::result;
 
 /// Extension of the standard library's `Result` type,

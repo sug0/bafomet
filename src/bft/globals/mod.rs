@@ -11,13 +11,13 @@ impl Flag {
         Self(AtomicBool::new(false))
     }
 
-    /// Sets the global variable as initialized. 
+    /// Sets the global variable as initialized.
     #[inline]
     pub fn set(&'static self) {
         self.0.store(true, Ordering::Release);
     }
 
-    /// Sets the global variable as dropped. 
+    /// Sets the global variable as dropped.
     #[inline]
     pub fn unset(&'static self) {
         self.0.store(false, Ordering::Release);

@@ -2,29 +2,16 @@ mod common;
 
 use common::*;
 
-use febft::bft::threadpool;
+use febft::bft::async_runtime as rt;
 use febft::bft::collections::HashMap;
 use febft::bft::communication::NodeId;
-use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::threadpool;
+use febft::bft::{init, InitConfig};
 
 fn main() {
-    let arg = std::env::args_os()
-        .skip(1)
-        .next()
-        .unwrap();
-    let id: u32 = arg
-        .to_str()
-        .unwrap()
-        .parse()
-        .unwrap();
+    let arg = std::env::args_os().skip(1).next().unwrap();
+    let id: u32 = arg.to_str().unwrap().parse().unwrap();
     let conf = InitConfig {
         // 40 - one thread for exec
         async_threads: 39,
@@ -43,7 +30,7 @@ macro_rules! ip {
             let i = if j == 1000 { 0 } else { j };
             format!("192.168.70.{}:{}", 16 + i, 10000 + j)
         }
-    }
+    };
 }
 
 async fn async_main(id: NodeId) {
@@ -58,9 +45,7 @@ async fn async_main(id: NodeId) {
             .map(|(id, sk)| (*id, sk.public_key().into()))
             .collect();
 
-        let pool = threadpool::Builder::new()
-            .num_threads(4)
-            .build();
+        let pool = threadpool::Builder::new().num_threads(4).build();
 
         let t = (0..4).chain(std::iter::once(1000));
         let peers: Vec<_> = NodeId::targets(t).collect();
@@ -76,13 +61,7 @@ async fn async_main(id: NodeId) {
         };
 
         let sk = secret_keys.remove(&id).unwrap();
-        let fut = setup_replica(
-            pool,
-            id,
-            sk,
-            addrs,
-            public_keys,
-        );
+        let fut = setup_replica(pool, id, sk, addrs, public_keys);
 
         println!("Bootstrapping replica #{}", u32::from(id));
         let replica = fut.await.unwrap();

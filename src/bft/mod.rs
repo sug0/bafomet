@@ -4,20 +4,20 @@
 //! with the feature flag `expose_impl`.
 
 pub mod async_runtime;
-pub mod communication;
 pub mod collections;
-pub mod executable;
-pub mod threadpool;
+pub mod communication;
 pub mod consensus;
-pub mod ordering;
-pub mod timeouts;
-pub mod globals;
-pub mod crypto;
-pub mod error;
-pub mod prng;
 pub mod core;
-pub mod sync;
+pub mod crypto;
 pub mod cst;
+pub mod error;
+pub mod executable;
+pub mod globals;
+pub mod ordering;
+pub mod prng;
+pub mod sync;
+pub mod threadpool;
+pub mod timeouts;
 
 use std::ops::Drop;
 

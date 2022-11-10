@@ -1,70 +1,38 @@
 //! Communication primitives for `febft`, such as wire message formats.
 
-pub mod socket;
-pub mod serialize;
-pub mod message;
 pub mod channel;
+pub mod message;
+pub mod serialize;
+pub mod socket;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use std::sync::Arc;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
-use either::{
-    Left,
-    Right,
-    Either,
-};
-use rustls::{
-    ClientConfig,
-    ServerConfig,
-};
 use async_tls::{
-    server::TlsStream as TlsStreamSrv,
-    client::TlsStream as TlsStreamCli,
-    TlsConnector,
-    TlsAcceptor,
+    client::TlsStream as TlsStreamCli, server::TlsStream as TlsStreamSrv, TlsAcceptor, TlsConnector,
 };
-use futures::io::{
-    AsyncReadExt,
-    AsyncWriteExt,
-};
-use parking_lot::RwLock;
-use futures_timer::Delay;
+use either::{Either, Left, Right};
+use futures::io::{AsyncReadExt, AsyncWriteExt};
 use futures::lock::Mutex;
+use futures_timer::Delay;
+use parking_lot::RwLock;
+use rustls::{ClientConfig, ServerConfig};
 use smallvec::SmallVec;
 
-use crate::bft::prng;
-use crate::bft::error::*;
 use crate::bft::async_runtime as rt;
-use crate::bft::crypto::hash::Digest;
 use crate::bft::collections::{self, HashMap};
-use crate::bft::communication::serialize::{
-    Buf,
-    SharedData,
-    DigestData,
-};
-use crate::bft::communication::socket::{
-    Socket,
-    Listener,
-};
-use crate::bft::communication::message::{
-    Header,
-    Message,
-    WireMessage,
-    SystemMessage,
-};
-use crate::bft::communication::channel::{
-    MessageChannelTx,
-    MessageChannelRx,
-    new_message_channel,
-};
-use crate::bft::crypto::signature::{
-    PublicKey,
-    KeyPair,
-};
+use crate::bft::communication::channel::{new_message_channel, MessageChannelRx, MessageChannelTx};
+use crate::bft::communication::message::{Header, Message, SystemMessage, WireMessage};
+use crate::bft::communication::serialize::{Buf, DigestData, SharedData};
+use crate::bft::communication::socket::{Listener, Socket};
+use crate::bft::crypto::hash::Digest;
+use crate::bft::crypto::signature::{KeyPair, PublicKey};
+use crate::bft::error::*;
+use crate::bft::prng;
 
 /// A `NodeId` represents the id of a process in the BFT system.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -77,18 +45,14 @@ impl NodeId {
     where
         I: IntoIterator<Item = u32>,
     {
-        into_iterator
-            .into_iter()
-            .map(Self)
+        into_iterator.into_iter().map(Self)
     }
 
     pub fn targets<I>(into_iterator: I) -> impl Iterator<Item = Self>
     where
         I: IntoIterator<Item = usize>,
     {
-        into_iterator
-            .into_iter()
-            .map(NodeId::from)
+        into_iterator.into_iter().map(NodeId::from)
     }
 }
 
@@ -214,16 +178,15 @@ where
         let id = cfg.id;
 
         // initial checks of correctness
-        if cfg.n < (3*cfg.f + 1) {
-            return Err("Invalid number of replicas")
-                .wrapped(ErrorKind::Communication);
+        if cfg.n < (3 * cfg.f + 1) {
+            return Err("Invalid number of replicas").wrapped(ErrorKind::Communication);
         }
         if id >= NodeId::from(cfg.n) && id < cfg.first_cli {
-            return Err("Invalid node ID")
-                .wrapped(ErrorKind::Communication);
+            return Err("Invalid node ID").wrapped(ErrorKind::Communication);
         }
 
-        let listener = socket::bind(cfg.addrs[&id].0).await
+        let listener = socket::bind(cfg.addrs[&id].0)
+            .await
             .wrapped(ErrorKind::Communication)?;
 
         let (tx, rx) = new_message_channel::<D::State, D::Request, D::Reply>(NODE_CHAN_BOUND);
@@ -231,7 +194,13 @@ where
         let connector: TlsConnector = cfg.client_config.into();
 
         // rx side (accept conns from replica)
-        rt::spawn(Self::rx_side_accept(cfg.first_cli, id, listener, acceptor, tx.clone()));
+        rt::spawn(Self::rx_side_accept(
+            cfg.first_cli,
+            id,
+            listener,
+            acceptor,
+            tx.clone(),
+        ));
 
         // tx side (connect to replica)
         let mut rng = prng::State::new();
@@ -250,7 +219,7 @@ where
         } else {
             PeerTx::Server(collections::hash_map())
         };
-        let shared = Arc::new(NodeShared{
+        let shared = Arc::new(NodeShared {
             my_key: cfg.sk,
             peer_keys: cfg.pk,
         });
@@ -284,26 +253,26 @@ where
                         // not a client connection, increase count
                         c[usize::from(id)] += 1;
                     }
-                },
+                }
                 Message::ConnectedRx(id, sock) => {
                     node.handle_connected_rx(id, sock);
                     if id < cfg.first_cli {
                         // not a client connection, increase count
                         c[usize::from(id)] += 1;
                     }
-                },
+                }
                 Message::DisconnectedTx(NodeId(i)) => {
                     let s = format!("Node {} disconnected from send side", i);
                     return Err(s).wrapped(ErrorKind::Communication);
-                },
+                }
                 Message::DisconnectedRx(Some(NodeId(i))) => {
                     let s = format!("Node {} disconnected from receive side", i);
                     return Err(s).wrapped(ErrorKind::Communication);
-                },
+                }
                 Message::DisconnectedRx(None) => {
                     let s = "Disconnected from receive side";
                     return Err(s).wrapped(ErrorKind::Communication);
-                },
+                }
                 m => rogue.push(m),
             }
         }
@@ -347,13 +316,7 @@ where
         message: SystemMessage<D::State, D::Request, D::Reply>,
         target: NodeId,
     ) -> Digest {
-        let send_to = Self::send_to(
-            self.id,
-            target,
-            &self.shared,
-            &self.my_tx,
-            &self.peer_tx,
-        );
+        let send_to = Self::send_to(self.id, target, &self.shared, &self.my_tx, &self.peer_tx);
         let my_id = self.id;
         let nonce = self.rng.next_state();
         Self::send_impl(message, send_to, my_id, target, nonce)
@@ -369,16 +332,13 @@ where
     ) -> Digest {
         // serialize
         let mut buf: Buf = Buf::new();
-        let digest = <D as DigestData>::serialize_digest(
-            &message,
-            &mut buf,
-        ).unwrap();
+        let digest = <D as DigestData>::serialize_digest(&message, &mut buf).unwrap();
 
         rt::spawn(async move {
             // send
             if my_id == target {
                 // Right -> our turn
-                send_to.value(Right((message, nonce, digest ,buf))).await;
+                send_to.value(Right((message, nonce, digest, buf))).await;
             } else {
                 // Left -> peer turn
                 send_to.value(Left((nonce, digest, buf))).await;
@@ -394,13 +354,8 @@ where
         message: SystemMessage<D::State, D::Request, D::Reply>,
         targets: impl Iterator<Item = NodeId>,
     ) -> Digest {
-        let (mine, others) = Self::send_tos(
-            self.id,
-            &self.peer_tx,
-            &self.my_tx,
-            &self.shared,
-            targets,
-        );
+        let (mine, others) =
+            Self::send_tos(self.id, &self.peer_tx, &self.my_tx, &self.shared, targets);
         let nonce = self.rng.next_state();
         Self::broadcast_impl(message, mine, others, nonce)
     }
@@ -414,10 +369,7 @@ where
     ) -> Digest {
         // serialize
         let mut buf: Buf = Buf::new();
-        let digest = <D as DigestData>::serialize_digest(
-            &message,
-            &mut buf,
-        ).unwrap();
+        let digest = <D as DigestData>::serialize_digest(&message, &mut buf).unwrap();
 
         rt::spawn(async move {
             // send to ourselves
@@ -469,7 +421,7 @@ where
                     &mut my_send_to,
                     &mut other_send_tos,
                 );
-            },
+            }
             PeerTx::Server(ref map) => {
                 Self::create_send_tos(
                     my_id,
@@ -480,7 +432,7 @@ where
                     &mut my_send_to,
                     &mut other_send_tos,
                 );
-            },
+            }
         };
 
         (my_send_to, other_send_tos)
@@ -529,20 +481,14 @@ where
         let tx = tx.clone();
         let shared = Arc::clone(shared);
         if my_id == peer_id {
-            SendTo::Me {
-                shared,
-                my_id,
-                tx,
-            }
+            SendTo::Me { shared, my_id, tx }
         } else {
             let sock = match peer_tx {
                 PeerTx::Client(ref lock) => {
                     let map = lock.read();
                     Arc::clone(&map[&peer_id])
-                },
-                PeerTx::Server(ref map) => {
-                    Arc::clone(&map[&peer_id])
-                },
+                }
+                PeerTx::Server(ref map) => Arc::clone(&map[&peer_id]),
             };
             SendTo::Peers {
                 sock,
@@ -564,11 +510,11 @@ where
         match &mut self.peer_tx {
             PeerTx::Server(ref mut peer_tx) => {
                 peer_tx.insert(peer_id, Arc::new(Mutex::new(sock)));
-            },
+            }
             PeerTx::Client(ref lock) => {
                 let mut peer_tx = lock.write();
                 peer_tx.insert(peer_id, Arc::new(Mutex::new(sock)));
-            },
+            }
         }
     }
 
@@ -645,14 +591,18 @@ where
                         // errors deserializing -> faulty connection;
                         // drop this socket
                         break;
-                    },
+                    }
                 };
 
-                tx.send(Message::System(header, message)).await.unwrap_or(());
+                tx.send(Message::System(header, message))
+                    .await
+                    .unwrap_or(());
             }
 
             // announce we have disconnected
-            tx.send(Message::DisconnectedRx(Some(peer_id))).await.unwrap_or(());
+            tx.send(Message::DisconnectedRx(Some(peer_id)))
+                .await
+                .unwrap_or(());
         });
     }
 
@@ -673,7 +623,9 @@ where
             let addr = addrs[&peer_id].clone();
             let connector = connector.clone();
             let nonce = rng.next_state();
-            rt::spawn(Self::tx_side_connect_task(my_id, peer_id, nonce, connector, tx, addr));
+            rt::spawn(Self::tx_side_connect_task(
+                my_id, peer_id, nonce, connector, tx, addr,
+            ));
         }
     }
 
@@ -705,14 +657,8 @@ where
                 };
 
                 // create header
-                let (header, _) = WireMessage::new(
-                    my_id,
-                    peer_id,
-                    &[],
-                    nonce,
-                    None,
-                    None,
-                ).into_inner();
+                let (header, _) =
+                    WireMessage::new(my_id, peer_id, &[], nonce, None, None).into_inner();
 
                 // serialize header
                 let mut buf = [0; Header::LENGTH];
@@ -726,14 +672,18 @@ where
                 }
 
                 // success
-                tx.send(Message::ConnectedTx(peer_id, sock)).await.unwrap_or(());
+                tx.send(Message::ConnectedTx(peer_id, sock))
+                    .await
+                    .unwrap_or(());
                 return;
             }
             // sleep for `SECS` seconds and retry
             Delay::new(Duration::from_secs(SECS)).await;
         }
         // announce we have failed to connect to the peer node
-        tx.send(Message::DisconnectedTx(peer_id)).await.unwrap_or(());
+        tx.send(Message::DisconnectedTx(peer_id))
+            .await
+            .unwrap_or(());
     }
 
     // TODO: check if we have terminated the node, and exit
@@ -748,7 +698,9 @@ where
             if let Ok(sock) = listener.accept().await {
                 let tx = tx.clone();
                 let acceptor = acceptor.clone();
-                rt::spawn(Self::rx_side_accept_task(first_cli, my_id, acceptor, sock, tx));
+                rt::spawn(Self::rx_side_accept_task(
+                    first_cli, my_id, acceptor, sock, tx,
+                ));
             }
         }
     }
@@ -796,7 +748,9 @@ where
                 Err(_) => break,
             };
 
-            tx.send(Message::ConnectedRx(peer_id, sock)).await.unwrap_or(());
+            tx.send(Message::ConnectedRx(peer_id, sock))
+                .await
+                .unwrap_or(());
             return;
         }
 
@@ -839,13 +793,7 @@ where
         message: SystemMessage<D::State, D::Request, D::Reply>,
         target: NodeId,
     ) -> Digest {
-        let send_to = <Node<D>>::send_to(
-            self.id,
-            target,
-            &self.shared,
-            &self.my_tx,
-            &self.peer_tx,
-        );
+        let send_to = <Node<D>>::send_to(self.id, target, &self.shared, &self.my_tx, &self.peer_tx);
         let my_id = self.id;
         let nonce = self.rng.next_state();
         <Node<D>>::send_impl(message, send_to, my_id, target, nonce)
@@ -857,13 +805,8 @@ where
         message: SystemMessage<D::State, D::Request, D::Reply>,
         targets: impl Iterator<Item = NodeId>,
     ) -> Digest {
-        let (mine, others) = <Node<D>>::send_tos(
-            self.id,
-            &self.peer_tx,
-            &self.my_tx,
-            &self.shared,
-            targets,
-        );
+        let (mine, others) =
+            <Node<D>>::send_tos(self.id, &self.peer_tx, &self.my_tx, &self.shared, targets);
         let nonce = self.rng.next_state();
         <Node<D>>::broadcast_impl(message, mine, others, nonce)
     }
@@ -908,25 +851,43 @@ where
 {
     async fn value(
         &mut self,
-        m: Either<(u64, Digest, Buf), (SystemMessage<D::State, D::Request, D::Reply>, u64, Digest, Buf)>,
+        m: Either<
+            (u64, Digest, Buf),
+            (
+                SystemMessage<D::State, D::Request, D::Reply>,
+                u64,
+                Digest,
+                Buf,
+            ),
+        >,
     ) {
         match self {
-            SendTo::Me { my_id, shared: ref sh, ref mut tx } => {
+            SendTo::Me {
+                my_id,
+                shared: ref sh,
+                ref mut tx,
+            } => {
                 if let Right((m, n, d, b)) = m {
                     Self::me(*my_id, m, n, d, b, &sh.my_key, tx).await
                 } else {
                     // optimize code path
                     unreachable!()
                 }
-            },
-            SendTo::Peers { my_id, peer_id, shared: ref sh, ref sock, ref mut tx } => {
+            }
+            SendTo::Peers {
+                my_id,
+                peer_id,
+                shared: ref sh,
+                ref sock,
+                ref mut tx,
+            } => {
                 if let Left((n, d, b)) = m {
                     Self::peers(*my_id, *peer_id, n, d, b, &sh.my_key, &*sock, tx).await
                 } else {
                     // optimize code path
                     unreachable!()
                 }
-            },
+            }
         }
     }
 
@@ -940,14 +901,7 @@ where
         tx: &mut MessageChannelTx<D::State, D::Request, D::Reply>,
     ) {
         // create wire msg
-        let (h, _) = WireMessage::new(
-            my_id,
-            my_id,
-            &b[..],
-            n,
-            Some(d),
-            Some(sk),
-        ).into_inner();
+        let (h, _) = WireMessage::new(my_id, my_id, &b[..], n, Some(d), Some(sk)).into_inner();
 
         // send
         tx.send(Message::System(h, m)).await.unwrap_or(())
@@ -964,14 +918,7 @@ where
         tx: &mut MessageChannelTx<D::State, D::Request, D::Reply>,
     ) {
         // create wire msg
-        let wm = WireMessage::new(
-            my_id,
-            peer_id,
-            &b[..],
-            n,
-            Some(d),
-            Some(sk),
-        );
+        let wm = WireMessage::new(my_id, peer_id, &b[..], n, Some(d), Some(sk));
 
         // send
         //
@@ -980,7 +927,9 @@ where
         let mut sock = lock.lock().await;
         if let Err(_) = wm.write_to(&mut *sock).await {
             // error sending, drop connection
-            tx.send(Message::DisconnectedTx(peer_id)).await.unwrap_or(());
+            tx.send(Message::DisconnectedTx(peer_id))
+                .await
+                .unwrap_or(());
         }
     }
 }

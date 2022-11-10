@@ -6,65 +6,33 @@
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::ops::{Deref, DerefMut};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 //use either::{
 //    Left,
 //    Right,
 //};
 
-use crate::bft::prng;
-use crate::bft::consensus::Consensus;
-use crate::bft::crypto::hash::Digest;
-use crate::bft::core::server::ViewInfo;
-use crate::bft::communication::serialize::{
-    DigestData,
-    Buf,
-};
-use crate::bft::communication::{
-    Node,
-    NodeId
-};
-use crate::bft::ordering::{
-    SeqNo,
-    Orderable,
-    tbo_pop_message,
-    tbo_queue_message,
-    tbo_advance_message_queue,
-};
-use crate::bft::consensus::log::{
-    Log,
-    Proof,
-    CollectData,
-    ViewDecisionPair,
-};
-use crate::bft::timeouts::{
-    TimeoutKind,
-    TimeoutsHandle,
-};
-use crate::bft::collections::{
-    self,
-    HashMap,
-};
+use crate::bft::collections::{self, HashMap};
 use crate::bft::communication::message::{
-    Header,
-    WireMessage,
-    StoredMessage,
-    SystemMessage,
-    RequestMessage,
-    ViewChangeMessage,
-    ViewChangeMessageKind,
-    ForwardedRequestsMessage,
+    ForwardedRequestsMessage, Header, RequestMessage, StoredMessage, SystemMessage,
+    ViewChangeMessage, ViewChangeMessageKind, WireMessage,
 };
-use crate::bft::executable::{
-    Service,
-    Request,
-    Reply,
-    State,
+use crate::bft::communication::serialize::{Buf, DigestData};
+use crate::bft::communication::{Node, NodeId};
+use crate::bft::consensus::log::{CollectData, Log, Proof, ViewDecisionPair};
+use crate::bft::consensus::Consensus;
+use crate::bft::core::server::ViewInfo;
+use crate::bft::crypto::hash::Digest;
+use crate::bft::executable::{Reply, Request, Service, State};
+use crate::bft::ordering::{
+    tbo_advance_message_queue, tbo_pop_message, tbo_queue_message, Orderable, SeqNo,
 };
+use crate::bft::prng;
+use crate::bft::timeouts::{TimeoutKind, TimeoutsHandle};
 
 /// Contains the `COLLECT` structures the leader received in the `STOP-DATA` phase
 /// of the view change protocol, as well as a value to be proposed in the `SYNC` message.
@@ -95,7 +63,6 @@ struct FinalizeState {
     proposed: Vec<Digest>,
     sound: Sound,
 }
-
 
 enum FinalizeStatus {
     NoValue,
@@ -257,7 +224,10 @@ pub enum SynchronizerStatus {
     ///
     /// We need to invoke the leader change protocol if
     /// we have a non empty set of stopped messages.
-    RequestsTimedOut { forwarded: Vec<Digest>, stopped: Vec<Digest> },
+    RequestsTimedOut {
+        forwarded: Vec<Digest>,
+        stopped: Vec<Digest>,
+    },
 }
 
 /// Represents the status of calling `poll()` on a `Synchronizer`.
@@ -307,9 +277,12 @@ macro_rules! extract_msg {
 macro_rules! stop_status {
     ($self:expr, $i:expr) => {{
         let f = $self.view().params().f();
-        if $i > f { SynchronizerStatus::Running }
-            else { SynchronizerStatus::Nil }
-    }}
+        if $i > f {
+            SynchronizerStatus::Running
+        } else {
+            SynchronizerStatus::Nil
+        }
+    }};
 }
 
 macro_rules! finalize_view_change {
@@ -327,21 +300,21 @@ macro_rules! finalize_view_change {
             FinalizeStatus::NoValue => {
                 $self.collects.clear();
                 SynchronizerStatus::Running
-            },
+            }
             // we need to run cst before proceeding with view change
             FinalizeStatus::RunCst(state) => {
                 $self.collects.clear();
                 $self.finalize_state = Some(state);
                 $self.phase = ProtoPhase::SyncingState;
                 SynchronizerStatus::RunCst
-            },
+            }
             // we may finish the view change proto
             FinalizeStatus::Commit(state) => {
                 $self.collects.clear();
                 $self.finalize(state, $log, $consensus, $node)
-            },
+            }
         }
-    }}
+    }};
 }
 
 impl<S> Synchronizer<S>
@@ -366,11 +339,7 @@ where
     }
 
     /// Watch a client request with the digest `digest`.
-    pub fn watch_request(
-        &mut self,
-        digest: Digest,
-        timeouts: &TimeoutsHandle<S>,
-    ) {
+    pub fn watch_request(&mut self, digest: Digest, timeouts: &TimeoutsHandle<S>) {
         let phase = TimeoutPhase::Init(Instant::now());
         self.watch_request_impl(phase, digest, timeouts);
     }
@@ -395,10 +364,7 @@ where
         }
     }
 
-    fn add_stopped_requests(
-        &mut self,
-        log: &mut Log<State<S>, Request<S>, Reply<S>>,
-    ) {
+    fn add_stopped_requests(&mut self, log: &mut Log<State<S>, Request<S>, Reply<S>>) {
         // TODO: maybe optimize this `stopped_requests` call, to avoid
         // a heap allocation of a `Vec`?
         let requests = self
@@ -407,7 +373,8 @@ where
             .map(|stopped| stopped.into_inner());
 
         for (header, request) in requests {
-            self.watching.insert(header.unique_digest(), TimeoutPhase::TimedOut);
+            self.watching
+                .insert(header.unique_digest(), TimeoutPhase::TimedOut);
             log.insert(header, SystemMessage::Request(request));
         }
     }
@@ -466,33 +433,31 @@ where
         match self.phase {
             _ if !self.tbo.get_queue => SynchronizerPollStatus::Recv,
             ProtoPhase::Init => {
-                extract_msg!(Request<S> => 
+                extract_msg!(Request<S> =>
                     { self.phase = ProtoPhase::Stopping(0); },
                     &mut self.tbo.get_queue,
                     &mut self.tbo.stop
                 )
-            },
+            }
             ProtoPhase::Stopping(_) | ProtoPhase::Stopping2(_) => {
                 extract_msg!(Request<S> =>
                     &mut self.tbo.get_queue,
                     &mut self.tbo.stop
                 )
-            },
+            }
             ProtoPhase::StoppingData(_) => {
                 extract_msg!(Request<S> =>
                     &mut self.tbo.get_queue,
                     &mut self.tbo.stop_data
                 )
-            },
+            }
             ProtoPhase::Syncing => {
                 extract_msg!(Request<S> =>
                     &mut self.tbo.get_queue,
                     &mut self.tbo.sync
                 )
-            },
-            ProtoPhase::SyncingState => {
-                SynchronizerPollStatus::ResumeViewChange
-            },
+            }
+            ProtoPhase::SyncingState => SynchronizerPollStatus::ResumeViewChange,
         }
     }
 
@@ -509,20 +474,18 @@ where
         node: &mut Node<S::Data>,
     ) -> SynchronizerStatus {
         match self.phase {
-            ProtoPhase::Init => {
-                match message.kind() {
-                    ViewChangeMessageKind::Stop(_) => {
-                        self.queue_stop(header, message);
-                        return SynchronizerStatus::Nil;
-                    },
-                    ViewChangeMessageKind::StopData(_) => {
-                        self.queue_stop_data(header, message);
-                        return SynchronizerStatus::Nil;
-                    },
-                    ViewChangeMessageKind::Sync(_) => {
-                        self.queue_sync(header, message);
-                        return SynchronizerStatus::Nil;
-                    },
+            ProtoPhase::Init => match message.kind() {
+                ViewChangeMessageKind::Stop(_) => {
+                    self.queue_stop(header, message);
+                    return SynchronizerStatus::Nil;
+                }
+                ViewChangeMessageKind::StopData(_) => {
+                    self.queue_stop_data(header, message);
+                    return SynchronizerStatus::Nil;
+                }
+                ViewChangeMessageKind::Sync(_) => {
+                    self.queue_sync(header, message);
+                    return SynchronizerStatus::Nil;
                 }
             },
             ProtoPhase::Stopping(i) | ProtoPhase::Stopping2(i) => {
@@ -533,20 +496,20 @@ where
                     ViewChangeMessageKind::Stop(_) if msg_seq != next_seq => {
                         self.queue_stop(header, message);
                         return stop_status!(self, i);
-                    },
+                    }
                     ViewChangeMessageKind::Stop(_) if self.stopped.contains_key(&header.from()) => {
                         // drop attempts to vote twice
                         return stop_status!(self, i);
-                    },
+                    }
                     ViewChangeMessageKind::Stop(_) => i + 1,
                     ViewChangeMessageKind::StopData(_) => {
                         self.queue_stop_data(header, message);
                         return stop_status!(self, i);
-                    },
+                    }
                     ViewChangeMessageKind::Sync(_) => {
                         self.queue_sync(header, message);
                         return stop_status!(self, i);
-                    },
+                    }
                 };
 
                 // store pending requests from this STOP
@@ -597,7 +560,7 @@ where
                 }
 
                 SynchronizerStatus::Running
-            },
+            }
             ProtoPhase::StoppingData(i) => {
                 let msg_seq = message.sequence_number();
                 let seq = self.view().sequence_number();
@@ -607,25 +570,27 @@ where
                     ViewChangeMessageKind::Stop(_) => {
                         self.queue_stop(header, message);
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::StopData(_) if msg_seq != seq => {
                         if self.view().peek(msg_seq).leader() == node.id() {
                             self.queue_stop_data(header, message);
                         }
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::StopData(_) if self.view().leader() != node.id() => {
                         return SynchronizerStatus::Running;
-                    },
-                    ViewChangeMessageKind::StopData(_) if self.collects.contains_key(&header.from()) => {
+                    }
+                    ViewChangeMessageKind::StopData(_)
+                        if self.collects.contains_key(&header.from()) =>
+                    {
                         // drop attempts to vote twice
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::StopData(_) => i + 1,
                     ViewChangeMessageKind::Sync(_) => {
                         self.queue_sync(header, message);
                         return SynchronizerStatus::Running;
-                    },
+                    }
                 };
 
                 // NOTE: the STOP-DATA message signatures are already
@@ -635,7 +600,8 @@ where
                 // the new leader isn't forging messages.
 
                 // store collects from this STOP-DATA
-                self.collects.insert(header.from(), StoredMessage::new(header, message));
+                self.collects
+                    .insert(header.from(), StoredMessage::new(header, message));
 
                 if i != self.view().params().quorum() {
                     self.phase = ProtoPhase::StoppingData(i);
@@ -653,9 +619,8 @@ where
                     .map(|seq| SeqNo::from(u32::from(seq) + 1))
                     .unwrap_or(SeqNo::ZERO);
 
-                let normalized_collects: Vec<Option<&CollectData>> = self
-                    .normalized_collects(curr_cid)
-                    .collect();
+                let normalized_collects: Vec<Option<&CollectData>> =
+                    self.normalized_collects(curr_cid).collect();
 
                 let sound = sound(*self.view(), &normalized_collects);
                 if !sound.test() {
@@ -669,17 +634,17 @@ where
                 }
 
                 let p = log.view_change_propose();
-                let collects = self.collects
-                    .values()
-                    .cloned()
-                    .collect();
+                let collects = self.collects.values().cloned().collect();
                 let message = SystemMessage::ViewChange(ViewChangeMessage::new(
                     self.view().sequence_number(),
-                    ViewChangeMessageKind::Sync(LeaderCollects { proposed: p.clone(), collects }),
+                    ViewChangeMessageKind::Sync(LeaderCollects {
+                        proposed: p.clone(),
+                        collects,
+                    }),
                 ));
                 let node_id = node.id();
-                let targets = NodeId::targets(0..self.view().params().n())
-                    .filter(move |&id| id != node_id);
+                let targets =
+                    NodeId::targets(0..self.view().params().n()).filter(move |&id| id != node_id);
                 node.broadcast(message, targets);
 
                 let state = FinalizeState {
@@ -696,7 +661,7 @@ where
                     consensus,
                     node,
                 )
-            },
+            }
             ProtoPhase::Syncing => {
                 let msg_seq = message.sequence_number();
                 let seq = self.view().sequence_number();
@@ -706,22 +671,22 @@ where
                     ViewChangeMessageKind::Stop(_) => {
                         self.queue_stop(header, message);
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::StopData(_) => {
                         self.queue_stop_data(header, message);
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::Sync(_) if msg_seq != seq => {
                         self.queue_sync(header, message);
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::Sync(_) if header.from() != self.view().leader() => {
                         return SynchronizerStatus::Running;
-                    },
+                    }
                     ViewChangeMessageKind::Sync(_) => {
                         let mut message = message;
                         message.take_collects().unwrap().into_inner()
-                    },
+                    }
                 };
 
                 // leader has already performed this computation in the
@@ -732,10 +697,8 @@ where
                     .map(|p| p.pre_prepare().message().sequence_number())
                     .map(|seq| SeqNo::from(u32::from(seq) + 1))
                     .unwrap_or(SeqNo::ZERO);
-                let normalized_collects: Vec<_> = {
-                    normalized_collects(curr_cid, collect_data(signed.iter()))
-                        .collect()
-                };
+                let normalized_collects: Vec<_> =
+                    { normalized_collects(curr_cid, collect_data(signed.iter())).collect() };
 
                 let sound = sound(*self.view(), &normalized_collects);
                 if !sound.test() {
@@ -761,7 +724,7 @@ where
                     consensus,
                     node,
                 )
-            },
+            }
             // handled by `resume_view_change()`
             ProtoPhase::SyncingState => unreachable!(),
         }
@@ -774,18 +737,8 @@ where
         consensus: &mut Consensus<S>,
         node: &mut Node<S::Data>,
     ) -> Option<()> {
-        let state = self
-            .finalize_state
-            .take()?;
-        finalize_view_change!(
-            self,
-            state,
-            None,
-            Vec::new(),
-            log,
-            consensus,
-            node,
-        );
+        let state = self.finalize_state.take()?;
+        finalize_view_change!(self, state, None, Vec::new(), log, consensus, node,);
         Some(())
     }
 
@@ -803,8 +756,7 @@ where
         seq: SeqNo,
         timeouts: &TimeoutsHandle<S>,
     ) -> SynchronizerStatus {
-        let ignore_timeout = !self.watching_timeouts
-            || seq.next() != self.timeout_seq;
+        let ignore_timeout = !self.watching_timeouts || seq.next() != self.timeout_seq;
 
         if ignore_timeout {
             return SynchronizerStatus::Nil;
@@ -830,11 +782,11 @@ where
                     // NOTE: we don't update the timeout phase here, because this is
                     // done with the message we receive locally containing the forwarded
                     // requests, on `watch_forwarded_requests`
-                },
+                }
                 TimeoutPhase::TimedOutOnce(i) if now.duration_since(*i) > self.timeout_dur => {
                     stopped.push(digest.clone());
                     *timeout_phase = TimeoutPhase::TimedOut;
-                },
+                }
                 _ => (),
             }
         }
@@ -873,7 +825,7 @@ where
                 self.stopped.clear();
                 self.collects.clear();
                 self.phase = ProtoPhase::Stopping2(0);
-            },
+            }
         }
 
         // stop all timers
@@ -897,9 +849,7 @@ where
         timed_out: Vec<StoredMessage<RequestMessage<Request<S>>>>,
         node: &mut Node<S::Data>,
     ) {
-        let message = SystemMessage::ForwardedRequests(ForwardedRequestsMessage::new(
-            timed_out,
-        ));
+        let message = SystemMessage::ForwardedRequests(ForwardedRequestsMessage::new(timed_out));
         let targets = NodeId::targets(0..self.view().params().n());
         node.broadcast(message, targets);
     }
@@ -949,15 +899,15 @@ where
             }
         }
 
-        all_reqs
-            .drain()
-            .map(|(_, stop)| stop)
-            .collect()
+        all_reqs.drain().map(|(_, stop)| stop).collect()
     }
 
     // collects whose in execution cid is different from the given `in_exec` become `None`
     #[inline]
-    fn normalized_collects<'a>(&'a self, in_exec: SeqNo) -> impl Iterator<Item = Option<&'a CollectData>> {
+    fn normalized_collects<'a>(
+        &'a self,
+        in_exec: SeqNo,
+    ) -> impl Iterator<Item = Option<&'a CollectData>> {
         normalized_collects(in_exec, collect_data(self.collects.values()))
     }
 
@@ -995,7 +945,11 @@ where
 
     fn finalize(
         &mut self,
-        FinalizeState { curr_cid, proposed, sound }: FinalizeState,
+        FinalizeState {
+            curr_cid,
+            proposed,
+            sound,
+        }: FinalizeState,
         log: &mut Log<State<S>, Request<S>, Reply<S>>,
         consensus: &mut Consensus<S>,
         node: &mut Node<S::Data>,
@@ -1023,8 +977,7 @@ where
             //
             let mut buf = Buf::new();
             let m = consensus.forge_propose(proposed, self);
-            let digest = <S::Data as DigestData>::serialize_digest(&m, &mut buf)
-                .unwrap();
+            let digest = <S::Data as DigestData>::serialize_digest(&m, &mut buf).unwrap();
             let mut prng_state = prng::State::new();
             let (h, _) = WireMessage::new(
                 self.view().leader(),
@@ -1033,7 +986,8 @@ where
                 prng_state.next_state(),
                 Some(digest),
                 None,
-            ).into_inner();
+            )
+            .into_inner();
             (digest, h, m)
         };
         log.insert(header, message);
@@ -1092,10 +1046,7 @@ where
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fn sound<'a>(
-    curr_view: ViewInfo,
-    normalized_collects: &[Option<&'a CollectData>],
-) -> Sound {
+fn sound<'a>(curr_view: ViewInfo, normalized_collects: &[Option<&'a CollectData>]) -> Sound {
     // collect timestamps and values
     let mut timestamps = collections::hash_set();
     let mut values = collections::hash_set();
@@ -1109,15 +1060,16 @@ fn sound<'a>(
             None => {
                 timestamps.insert(SeqNo::ZERO);
                 continue;
-            },
+            }
         };
 
         // add quorum write timestamp
-        timestamps.insert(c
-            .incomplete_proof()
-            .quorum_writes()
-            .map(|ViewDecisionPair(ts, _)| *ts)
-            .unwrap_or(SeqNo::ZERO));
+        timestamps.insert(
+            c.incomplete_proof()
+                .quorum_writes()
+                .map(|ViewDecisionPair(ts, _)| *ts)
+                .unwrap_or(SeqNo::ZERO),
+        );
 
         // add writeset timestamps and values
         for ViewDecisionPair(ts, value) in c.incomplete_proof().write_set().iter() {
@@ -1151,10 +1103,7 @@ fn binds(
     }
 }
 
-fn unbound(
-    curr_view: ViewInfo,
-    normalized_collects: &[Option<&CollectData>],
-) -> bool {
+fn unbound(curr_view: ViewInfo, normalized_collects: &[Option<&CollectData>]) -> bool {
     if normalized_collects.len() < curr_view.params().quorum() {
         false
     } else {
@@ -1166,9 +1115,7 @@ fn unbound(
                         collect
                             .incomplete_proof()
                             .quorum_writes()
-                            .map(|ViewDecisionPair(other_ts, _)| {
-                                *other_ts == SeqNo::ZERO
-                            })
+                            .map(|ViewDecisionPair(other_ts, _)| *other_ts == SeqNo::ZERO)
                             // when there is no quorum write, BFT-SMaRt
                             // assumes replicas are on view 0
                             .unwrap_or(true)
@@ -1218,13 +1165,13 @@ fn quorum_highest(
             collect
                 .incomplete_proof()
                 .quorum_writes()
-                .map(|ViewDecisionPair(other_ts, other_value)| {
-                    match other_ts.cmp(&ts) {
+                .map(
+                    |ViewDecisionPair(other_ts, other_value)| match other_ts.cmp(&ts) {
                         Ordering::Less => true,
                         Ordering::Equal if other_value == value => true,
                         _ => false,
-                    }
-                })
+                    },
+                )
                 .unwrap_or(false)
         })
         .count();
@@ -1257,27 +1204,23 @@ fn certified_value(
 fn collect_data<'a, O: 'a>(
     collects: impl Iterator<Item = &'a StoredMessage<ViewChangeMessage<O>>>,
 ) -> impl Iterator<Item = &'a CollectData> {
-    collects
-        .filter_map(|stored| {
-            match stored.message().kind() {
-                ViewChangeMessageKind::StopData(collects) => Some(collects),
-                _ => None,
-            }
-        })
+    collects.filter_map(|stored| match stored.message().kind() {
+        ViewChangeMessageKind::StopData(collects) => Some(collects),
+        _ => None,
+    })
 }
 
 fn normalized_collects<'a>(
     in_exec: SeqNo,
     collects: impl Iterator<Item = &'a CollectData>,
 ) -> impl Iterator<Item = Option<&'a CollectData>> {
-    collects
-        .map(move |collect| {
-            if collect.incomplete_proof().executing() == in_exec {
-                Some(collect)
-            } else {
-                None
-            }
-        })
+    collects.map(move |collect| {
+        if collect.incomplete_proof().executing() == in_exec {
+            Some(collect)
+        } else {
+            None
+        }
+    })
 }
 
 fn signed_collects<S>(
@@ -1296,10 +1239,7 @@ where
         .collect()
 }
 
-fn validate_signature<'a, S, M>(
-    node: &'a Node<S::Data>,
-    stored: &'a StoredMessage<M>,
-) -> bool
+fn validate_signature<'a, S, M>(node: &'a Node<S::Data>, stored: &'a StoredMessage<M>) -> bool
 where
     S: Service + Send + 'static,
     State<S>: Send + Clone + 'static,
@@ -1319,11 +1259,7 @@ where
     wm.is_valid(Some(key))
 }
 
-fn highest_proof<'a, S, I>(
-    view: ViewInfo,
-    node: &Node<S::Data>,
-    collects: I,
-) -> Option<&'a Proof>
+fn highest_proof<'a, S, I>(view: ViewInfo, node: &Node<S::Data>, collects: I) -> Option<&'a Proof>
 where
     I: Iterator<Item = &'a StoredMessage<ViewChangeMessage<Request<S>>>>,
     S: Service + Send + 'static,
@@ -1339,10 +1275,7 @@ where
         // TODO: check proofs and digests of PREPAREs as well, eventually,
         // but for now we are replicating the behavior of BFT-SMaRt
         .filter(move |proof| {
-            let digest = proof
-                .pre_prepare()
-                .header()
-                .digest();
+            let digest = proof.pre_prepare().header().digest();
 
             proof
                 .commits()
@@ -1354,12 +1287,8 @@ where
                         .unwrap_or(false)
                 })
                 .filter(move |&stored| validate_signature::<S, _>(node, stored))
-                .count() >= view.params().quorum()
+                .count()
+                >= view.params().quorum()
         })
-        .max_by_key(|proof| {
-            proof
-                .pre_prepare()
-                .message()
-                .sequence_number()
-        })
+        .max_by_key(|proof| proof.pre_prepare().message().sequence_number())
 }

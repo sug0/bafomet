@@ -11,9 +11,7 @@ impl Builder {
     }
 
     pub fn build(self) -> ThreadPool {
-        self.inner
-            .build()
-            .into()
+        self.inner.build().into()
     }
 
     pub fn num_threads(self, num_threads: usize) -> Self {

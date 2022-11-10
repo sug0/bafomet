@@ -3,25 +3,20 @@
 //! This includes on-going client requests, as well as CST and
 //! view change messages exchanged between replicas.
 
-use std::time::Duration;
 use std::marker::PhantomData;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::Arc;
+use std::time::Duration;
 
+use futures_timer::Delay;
 use intmap::IntMap;
 use parking_lot::Mutex;
-use futures_timer::Delay;
 
-use crate::bft::ordering;
 use crate::bft::async_runtime as rt;
-use crate::bft::communication::message::Message;
 use crate::bft::communication::channel::MessageChannelTx;
-use crate::bft::executable::{
-    Service,
-    Request,
-    Reply,
-    State,
-};
+use crate::bft::communication::message::Message;
+use crate::bft::executable::{Reply, Request, Service, State};
+use crate::bft::ordering;
 
 type SeqNo = u64;
 type AtomicSeqNo = AtomicU64;
@@ -137,9 +132,7 @@ where
     Request<S>: Send + 'static,
     Reply<S>: Send + 'static,
 {
-    pub fn new(
-        system_tx: MessageChannelTx<State<S>, Request<S>, Reply<S>>,
-    ) -> TimeoutsHandle<S> {
+    pub fn new(system_tx: MessageChannelTx<State<S>, Request<S>, Reply<S>>) -> TimeoutsHandle<S> {
         let shared = Arc::new(TimeoutsHandleShared {
             canceled: Mutex::new(IntMap::new()),
             current_seq_no: AtomicSeqNo::new(0),

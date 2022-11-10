@@ -6,33 +6,17 @@ use std::time::Duration;
 
 use futures_timer::Delay;
 
-use febft::bft::threadpool;
-use febft::bft::collections::HashMap;
-use febft::bft::communication::NodeId;
 use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::communication::message::{
-    SystemMessage,
-    RequestMessage,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
+use febft::bft::collections::HashMap;
+use febft::bft::communication::message::{RequestMessage, SystemMessage};
+use febft::bft::communication::NodeId;
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::threadpool;
+use febft::bft::{init, InitConfig};
 
 fn main() {
-    let arg = std::env::args_os()
-        .skip(1)
-        .next()
-        .unwrap();
-    let id: u32 = arg
-        .to_str()
-        .unwrap()
-        .parse()
-        .unwrap();
+    let arg = std::env::args_os().skip(1).next().unwrap();
+    let id: u32 = arg.to_str().unwrap().parse().unwrap();
     let conf = InitConfig {
         async_threads: num_cpus::get(),
     };
@@ -49,7 +33,7 @@ macro_rules! ip {
             let i = u32::from($peer);
             format!("192.168.70.{}:{}", 16 + i, 10000 + i)
         }
-    }
+    };
 }
 
 async fn async_main(id: NodeId) {
@@ -61,25 +45,17 @@ async fn async_main(id: NodeId) {
         .map(|(id, sk)| (NodeId::from(id), sk))
         .collect();
 
-    let pool = threadpool::Builder::new()
-        .num_threads(4)
-        .build();
+    let pool = threadpool::Builder::new().num_threads(4).build();
 
     let mut node = {
         let peers: Vec<_> = NodeId::targets(0..4).collect();
-        let addrs= map! {
+        let addrs = map! {
             peers[0] => addr!("cop01" => ip!(id, peers[0])),
             peers[1] => addr!("cop02" => ip!(id, peers[1])),
             peers[2] => addr!("cop03" => ip!(id, peers[2])),
             peers[3] => addr!("cop04" => ip!(id, peers[3]))
         };
-        let fut = setup_node(
-            pool,
-            id,
-            sk,
-            addrs,
-            public_keys,
-        );
+        let fut = setup_node(pool, id, sk, addrs, public_keys);
         println!("Bootstrapping...");
         let (node, rogue) = fut.await.unwrap();
         println!("Spawned node; len(rogue) => {}", rogue.len());
@@ -96,10 +72,7 @@ async fn async_main(id: NodeId) {
 
     // receive peer messages
     for _ in 0..4 {
-        let m = node
-            .receive()
-            .await
-            .unwrap();
+        let m = node.receive().await.unwrap();
         let peer: u32 = m
             .header()
             .expect(&format!("on node {}", u32::from(id)))
@@ -114,6 +87,5 @@ async fn async_main(id: NodeId) {
 
 const KEY_SIZE: usize = 32;
 
-pub static SECRET_KEYS: [[u8; KEY_SIZE]; 4] = [
-    [1; KEY_SIZE], [2; KEY_SIZE], [3; KEY_SIZE], [4; KEY_SIZE],
-];
+pub static SECRET_KEYS: [[u8; KEY_SIZE]; 4] =
+    [[1; KEY_SIZE], [2; KEY_SIZE], [3; KEY_SIZE], [4; KEY_SIZE]];

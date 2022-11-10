@@ -4,7 +4,7 @@
 //! from David Blackman and Sebastiano Vigna. This source code is a one-to-one translation of their
 //! C code, released to the public domain.
 
-use rand_core::{RngCore, OsRng};
+use rand_core::{OsRng, RngCore};
 
 /// This type is a container for the 256-bit state of `xoshiro256**`.
 pub struct State {
@@ -86,5 +86,5 @@ impl Iterator for State {
 
 #[inline]
 fn rotl(x: u64, k: u64) -> u64 {
-	(x << k) | (x >> (64 - k))
+    (x << k) | (x >> (64 - k))
 }

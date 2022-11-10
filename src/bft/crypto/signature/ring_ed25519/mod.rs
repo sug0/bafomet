@@ -1,14 +1,10 @@
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "serialize_serde")]
 use serde_big_array::big_array;
 
-use ring::{
-    signature as rsig,
-    signature::KeyPair as RKeyPair,
-    signature::ED25519_PUBLIC_KEY_LEN,
-};
+use ring::{signature as rsig, signature::KeyPair as RKeyPair, signature::ED25519_PUBLIC_KEY_LEN};
 
 use crate::bft::error::*;
 
@@ -32,13 +28,15 @@ big_array! { SignatureArray; }
 #[cfg_attr(feature = "serialize_serde", derive(Serialize, Deserialize))]
 pub struct Signature(
     #[cfg_attr(feature = "serialize_serde", serde(with = "SignatureArray"))]
-    [u8; Signature::LENGTH]
+    [u8; Signature::LENGTH],
 );
 
 impl KeyPair {
     pub fn from_bytes(seed_bytes: &[u8]) -> Result<Self> {
-        let sk = rsig::Ed25519KeyPair::from_seed_unchecked(seed_bytes)
-            .simple_msg(ErrorKind::CryptoSignatureRingEd25519, "Invalid seed for ed25519 key")?;
+        let sk = rsig::Ed25519KeyPair::from_seed_unchecked(seed_bytes).simple_msg(
+            ErrorKind::CryptoSignatureRingEd25519,
+            "Invalid seed for ed25519 key",
+        )?;
         let pk = sk.public_key().clone();
         let pk = PublicKey::from_bytes_unchecked(pk.as_ref());
         Ok(KeyPair { pk, sk })
@@ -76,7 +74,8 @@ impl PublicKey {
     }
 
     pub fn verify(&self, message: &[u8], signature: &Signature) -> Result<()> {
-        self.pk.verify(message, signature.as_ref())
+        self.pk
+            .verify(message, signature.as_ref())
             .simple_msg(ErrorKind::CryptoSignatureRingEd25519, "Invalid signature")
     }
 }
@@ -107,17 +106,15 @@ impl AsRef<[u8]> for Signature {
 
 #[cfg(test)]
 mod tests {
-    use super::{Signature, KeyPair};
+    use super::{KeyPair, Signature};
 
     #[test]
     fn test_sign_verify() {
         let k = KeyPair::from_bytes(&[0; 32][..]).expect("Invalid key bytes");
 
         let message = b"test message";
-        let signature = k.sign(message)
-            .expect("Signature failed");
-        k
-            .public_key()
+        let signature = k.sign(message).expect("Signature failed");
+        k.public_key()
             .verify(message, &signature)
             .expect("Verify failed");
     }

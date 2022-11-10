@@ -5,27 +5,15 @@ use common::*;
 use std::time::Duration;
 
 use futures_timer::Delay;
-use rand_core::{
-    OsRng,
-    RngCore,
-};
+use rand_core::{OsRng, RngCore};
 
-use febft::bft::threadpool;
-use febft::bft::collections::HashMap;
-use febft::bft::communication::NodeId;
 use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::communication::message::{
-    SystemMessage,
-    RequestMessage,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
+use febft::bft::collections::HashMap;
+use febft::bft::communication::message::{RequestMessage, SystemMessage};
+use febft::bft::communication::NodeId;
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::threadpool;
+use febft::bft::{init, InitConfig};
 
 fn main() {
     let conf = InitConfig {
@@ -46,25 +34,17 @@ async fn async_main() {
         .map(|(id, sk)| (*id, sk.public_key().into()))
         .collect();
 
-    let pool = threadpool::Builder::new()
-        .num_threads(4)
-        .build();
+    let pool = threadpool::Builder::new().num_threads(4).build();
 
     for id in NodeId::targets(0..4) {
-        let addrs= map! {
+        let addrs = map! {
             NodeId::from(0u32) => addr!("cop01" => "127.0.0.1:10001"),
             NodeId::from(1u32) => addr!("cop02" => "127.0.0.1:10002"),
             NodeId::from(2u32) => addr!("cop03" => "127.0.0.1:10003"),
             NodeId::from(3u32) => addr!("cop04" => "127.0.0.1:10004")
         };
         let sk = secret_keys.remove(&id).unwrap();
-        let fut = setup_node(
-            pool.clone(),
-            id,
-            sk,
-            addrs,
-            public_keys.clone(),
-        );
+        let fut = setup_node(pool.clone(), id, sk, addrs, public_keys.clone());
         rt::spawn(async move {
             println!("Bootstrapping node #{}", u32::from(id));
             let (mut node, rogue) = fut.await.unwrap();
@@ -73,16 +53,18 @@ async fn async_main() {
             let m = SystemMessage::Request(RequestMessage::new(Vec::new()));
             node.broadcast(m, NodeId::targets(0..4));
             for _ in 0..4 {
-                let m = node
-                    .receive()
-                    .await
-                    .unwrap();
+                let m = node.receive().await.unwrap();
                 let peer: u32 = m
                     .header()
                     .expect(&format!("on node {}", u32::from(id)))
                     .from()
                     .into();
-                println!("Node #{} received message {} from #{}", u32::from(id), debug_msg(m), peer);
+                println!(
+                    "Node #{} received message {} from #{}",
+                    u32::from(id),
+                    debug_msg(m),
+                    peer
+                );
             }
             // avoid early drop of node
             rt::spawn(async move {

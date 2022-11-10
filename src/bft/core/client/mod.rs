@@ -1,31 +1,22 @@
 //! Contains the client side core protocol logic of `febft`.
 
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::future::Future;
-use std::task::{Poll, Waker, Context};
-use std::time::{Instant, Duration};
+use std::task::{Context, Poll, Waker};
+use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
 
 use super::SystemParams;
 
-use crate::bft::error::*;
 use crate::bft::async_runtime as rt;
-use crate::bft::crypto::hash::Digest;
 use crate::bft::collections::{self, HashMap};
+use crate::bft::communication::message::{Message, RequestMessage, SystemMessage};
 use crate::bft::communication::serialize::SharedData;
-use crate::bft::communication::message::{
-    Message,
-    SystemMessage,
-    RequestMessage,
-};
-use crate::bft::communication::{
-    Node,
-    NodeId,
-    SendNode,
-    NodeConfig,
-};
+use crate::bft::communication::{Node, NodeConfig, NodeId, SendNode};
+use crate::bft::crypto::hash::Digest;
+use crate::bft::error::*;
 
 struct ClientData<P> {
     wakers: Mutex<HashMap<Digest, Waker>>,
@@ -135,11 +126,7 @@ where
         let send_node = node.send_node();
 
         // spawn receiving task
-        rt::spawn(Self::message_recv_task(
-            params,
-            task_data,
-            node,
-        ));
+        rt::spawn(Self::message_recv_task(params, task_data, node));
 
         Ok(Client {
             data,
@@ -153,9 +140,7 @@ where
     //
     // TODO: request timeout
     pub async fn update(&mut self, operation: D::Request) -> D::Reply {
-        let message = SystemMessage::Request(RequestMessage::new(
-            operation,
-        ));
+        let message = SystemMessage::Request(RequestMessage::new(operation));
 
         // broadcast our request to the node group
         let targets = NodeId::targets(0..self.params.n());
@@ -210,7 +195,10 @@ where
                                 //
                                 // NOTE: the `digest()` call in the header returns the digest of
                                 // the payload
-                                .or_insert_with(|| ReplicaVotes { count: 0, digest: header.digest().clone() });
+                                .or_insert_with(|| ReplicaVotes {
+                                    count: 0,
+                                    digest: header.digest().clone(),
+                                });
 
                             // reply already delivered to application
                             if votes.count > params.f() {
@@ -241,11 +229,11 @@ where
                                     }
                                 }
                             }
-                        },
+                        }
                         // FIXME: handle rogue messages on clients
                         _ => panic!("rogue message detected"),
                     }
-                },
+                }
                 Message::ConnectedTx(id, sock) => node.handle_connected_tx(id, sock),
                 Message::ConnectedRx(id, sock) => node.handle_connected_rx(id, sock),
                 // TODO: node disconnected on send side

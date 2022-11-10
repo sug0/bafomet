@@ -4,30 +4,18 @@ use std::cmp::Ordering;
 use std::marker::PhantomData;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::bft::error::*;
-use crate::bft::cst::RecoveryState;
-use crate::bft::crypto::hash::Digest;
-use crate::bft::core::server::ViewInfo;
-use crate::bft::executable::UpdateBatch;
+use crate::bft::collections::{self, HashMap, OrderedMap};
 use crate::bft::communication::message::{
-    Header,
-    StoredMessage,
-    SystemMessage,
-    RequestMessage,
-    ConsensusMessage,
-    ConsensusMessageKind,
+    ConsensusMessage, ConsensusMessageKind, Header, RequestMessage, StoredMessage, SystemMessage,
 };
-use crate::bft::collections::{
-    self,
-    HashMap,
-    OrderedMap,
-};
-use crate::bft::ordering::{
-    SeqNo,
-    Orderable,
-};
+use crate::bft::core::server::ViewInfo;
+use crate::bft::crypto::hash::Digest;
+use crate::bft::cst::RecoveryState;
+use crate::bft::error::*;
+use crate::bft::executable::UpdateBatch;
+use crate::bft::ordering::{Orderable, SeqNo};
 
 /// Checkpoint period.
 ///
@@ -277,7 +265,7 @@ impl DecisionLog {
                             stored.message().view(),
                             stored.header().digest().clone(),
                         ));
-                    },
+                    }
                     Ordering::Less => break,
                     // impossible, because we are executing `in_exec`
                     Ordering::Greater => unreachable!(),
@@ -308,12 +296,9 @@ impl DecisionLog {
                                 ConsensusMessageKind::Prepare(d) => d.clone(),
                                 _ => unreachable!(),
                             };
-                            break 'outer Some(ViewDecisionPair(
-                                stored.message().view(),
-                                digest,
-                            ));
+                            break 'outer Some(ViewDecisionPair(stored.message().view(), digest));
                         }
-                    },
+                    }
                     Ordering::Less => break,
                     // impossible, because we are executing `in_exec`
                     Ordering::Greater => unreachable!(),
@@ -323,7 +308,11 @@ impl DecisionLog {
             break 'outer None;
         };
 
-        IncompleteProof { in_exec, write_set, quorum_writes }
+        IncompleteProof {
+            in_exec,
+            write_set,
+            quorum_writes,
+        }
     }
 
     /// Returns the proof of the last executed consensus
@@ -370,7 +359,11 @@ impl DecisionLog {
             // phase, since it already voted in the PRE-PREPARE phase;
             // = (N - F) - 1 = (2F + 1) - 1 = 2F
             let quorum = view.params().f() << 1;
-            if buf.len() < quorum { None } else { Some(buf) }
+            if buf.len() < quorum {
+                None
+            } else {
+                Some(buf)
+            }
         }?;
         let commits = {
             let mut buf = Vec::new();
@@ -395,10 +388,18 @@ impl DecisionLog {
                 buf.push(stored.clone());
             }
             let quorum = view.params().quorum();
-            if buf.len() < quorum { None } else { Some(buf) }
+            if buf.len() < quorum {
+                None
+            } else {
+                Some(buf)
+            }
         }?;
 
-        Some(Proof { pre_prepare, prepares, commits })
+        Some(Proof {
+            pre_prepare,
+            prepares,
+            commits,
+        })
     }
 
     /// Clear incomplete proofs from the log, which match the consensus
@@ -452,10 +453,10 @@ impl DecisionLog {
                     Some(j) if i == j => {
                         pre_prepare = Some(self.pre_prepares.swap_remove(i));
                         pre_prepare_i = None;
-                    },
+                    }
                     _ => {
                         self.pre_prepares.swap_remove(i);
-                    },
+                    }
                 }
             }
 
@@ -538,25 +539,23 @@ impl<S, O, P> Log<S, O, P> {
         O: Clone,
     {
         match self.checkpoint {
-            CheckpointState::Complete(ref checkpoint) => {
-                Ok(RecoveryState::new(
-                    view,
-                    checkpoint.clone(),
-                    self.decided.clone(),
-                    self.declog.clone(),
-                ))
-            },
+            CheckpointState::Complete(ref checkpoint) => Ok(RecoveryState::new(
+                view,
+                checkpoint.clone(),
+                self.decided.clone(),
+                self.declog.clone(),
+            )),
             _ => Err("Checkpoint to be finalized").wrapped(ErrorKind::ConsensusLog),
         }
     }
 
-/*
-    /// Replaces the current `Log` with an empty one, and returns
-    /// the replaced instance.
-    pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Log::new())
-    }
-*/
+    /*
+        /// Replaces the current `Log` with an empty one, and returns
+        /// the replaced instance.
+        pub fn take(&mut self) -> Self {
+            std::mem::replace(self, Log::new())
+        }
+    */
 
     /// Adds a new `message` and its respective `header` to the log.
     pub fn insert(&mut self, header: Header, message: SystemMessage<S, O, P>) {
@@ -566,7 +565,7 @@ impl<S, O, P> Log<S, O, P> {
                 let stored = StoredMessage::new(header, message);
                 self.requests.insert(digest, stored);
                 self.deciding.remove(&digest);
-            },
+            }
             SystemMessage::Consensus(message) => {
                 let stored = StoredMessage::new(header, message);
                 match stored.message().kind() {
@@ -574,7 +573,7 @@ impl<S, O, P> Log<S, O, P> {
                     ConsensusMessageKind::Prepare(_) => self.declog.prepares.push(stored),
                     ConsensusMessageKind::Commit(_) => self.declog.commits.push(stored),
                 }
-            },
+            }
             // rest are not handled by the log
             _ => (),
         }
@@ -590,11 +589,13 @@ impl<S, O, P> Log<S, O, P> {
         // - prevent non leader replicas from collecting a batch of digests,
         // as only the leader will actually propose!
         if self.deciding.len() >= self.batch_size {
-            Some(self.deciding
-                .keys()
-                .copied()
-                .take(self.batch_size)
-                .collect())
+            Some(
+                self.deciding
+                    .keys()
+                    .copied()
+                    .take(self.batch_size)
+                    .collect(),
+            )
         } else {
             None
         }
@@ -637,13 +638,18 @@ impl<S, O, P> Log<S, O, P> {
     ///
     /// The log may be cleared resulting from this operation. Check the enum variant of
     /// `Info`, to perform a local checkpoint when appropriate.
-    pub fn finalize_batch(&mut self, seq: SeqNo, digests: &[Digest]) -> Result<(Info, UpdateBatch<O>)>
+    pub fn finalize_batch(
+        &mut self,
+        seq: SeqNo,
+        digests: &[Digest],
+    ) -> Result<(Info, UpdateBatch<O>)>
     where
         O: Clone,
     {
         let mut batch = UpdateBatch::new();
         for digest in digests {
-            let (header, message) = self.deciding
+            let (header, message) = self
+                .deciding
                 .remove(digest)
                 .or_else(|| self.requests.remove(digest))
                 .map(StoredMessage::into_inner)
@@ -662,7 +668,7 @@ impl<S, O, P> Log<S, O, P> {
         // pertaining to the current request being executed
         let last_seq_no = if self.declog.pre_prepares.len() > 0 {
             let stored_pre_prepare =
-                &self.declog.pre_prepares[self.declog.pre_prepares.len()-1].message();
+                &self.declog.pre_prepares[self.declog.pre_prepares.len() - 1].message();
             stored_pre_prepare.sequence_number()
         } else {
             // the log was cleared concurrently, retrieve
@@ -687,7 +693,9 @@ impl<S, O, P> Log<S, O, P> {
         let earlier = std::mem::replace(&mut self.checkpoint, CheckpointState::None);
         self.checkpoint = match earlier {
             CheckpointState::None => CheckpointState::Partial { seq },
-            CheckpointState::Complete(earlier) => CheckpointState::PartialWithEarlier { seq, earlier },
+            CheckpointState::Complete(earlier) => {
+                CheckpointState::PartialWithEarlier { seq, earlier }
+            }
             // FIXME: this may not be an invalid state after all; we may just be generating
             // checkpoints too fast for the execution layer to keep up, delivering the
             // hash digests of the appstate
@@ -703,14 +711,16 @@ impl<S, O, P> Log<S, O, P> {
     /// on the core server task's master channel.
     pub fn finalize_checkpoint(&mut self, appstate: S) -> Result<()> {
         match self.checkpoint {
-            CheckpointState::None => Err("No checkpoint has been initiated yet").wrapped(ErrorKind::ConsensusLog),
-            CheckpointState::Complete(_) => Err("Checkpoint already finalized").wrapped(ErrorKind::ConsensusLog),
-            CheckpointState::Partial { ref seq } | CheckpointState::PartialWithEarlier { ref seq, .. } => {
+            CheckpointState::None => {
+                Err("No checkpoint has been initiated yet").wrapped(ErrorKind::ConsensusLog)
+            }
+            CheckpointState::Complete(_) => {
+                Err("Checkpoint already finalized").wrapped(ErrorKind::ConsensusLog)
+            }
+            CheckpointState::Partial { ref seq }
+            | CheckpointState::PartialWithEarlier { ref seq, .. } => {
                 let seq = *seq;
-                self.checkpoint = CheckpointState::Complete(Checkpoint {
-                    seq,
-                    appstate,
-                });
+                self.checkpoint = CheckpointState::Complete(Checkpoint { seq, appstate });
                 self.decided.clear();
                 //
                 // NOTE: workaround bug where when we clear the log,
@@ -726,15 +736,15 @@ impl<S, O, P> Log<S, O, P> {
                         // which corresponds to the request currently being
                         // processed
                         self.curr_seq = last_pre_prepare.message().sequence_number();
-                    },
+                    }
                     None => {
                         // no stored PRE-PREPARE messages, NOOP
-                    },
+                    }
                 }
                 self.declog.prepares.clear();
                 self.declog.commits.clear();
                 Ok(())
-            },
+            }
         }
     }
 }

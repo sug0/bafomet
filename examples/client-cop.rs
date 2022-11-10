@@ -2,24 +2,16 @@ mod common;
 
 use common::*;
 
-use febft::bft::prng;
-use febft::bft::threadpool;
+use febft::bft::async_runtime as rt;
 use febft::bft::collections::HashMap;
 use febft::bft::communication::NodeId;
-use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::prng;
+use febft::bft::threadpool;
+use febft::bft::{init, InitConfig};
 
 fn main() {
-    let conf = InitConfig {
-        async_threads: 4,
-    };
+    let conf = InitConfig { async_threads: 4 };
     let _guard = unsafe { init(conf).unwrap() };
     rt::block_on(async_main());
 }
@@ -34,7 +26,7 @@ macro_rules! ip {
             let i = if j == 1000 { 0 } else { j };
             format!("192.168.70.{}:{}", 16 + i, 10000 + j)
         }
-    }
+    };
 }
 
 async fn async_main() {
@@ -51,9 +43,7 @@ async fn async_main() {
             .map(|(id, sk)| (*id, sk.public_key().into()))
             .collect();
 
-        let pool = threadpool::Builder::new()
-            .num_threads(4)
-            .build();
+        let pool = threadpool::Builder::new().num_threads(4).build();
 
         let t = (0..4).chain(std::iter::once(1000));
         let peers: Vec<_> = NodeId::targets(t).collect();
@@ -69,13 +59,9 @@ async fn async_main() {
         };
 
         let sk = secret_keys.remove(&id).unwrap();
-        setup_client(
-            pool,
-            id,
-            sk,
-            addrs,
-            public_keys,
-        ).await.unwrap()
+        setup_client(pool, id, sk, addrs, public_keys)
+            .await
+            .unwrap()
     };
 
     // use `N` concurrent clients
@@ -90,7 +76,11 @@ async fn async_main() {
                 let requests = (0..1024)
                     .map(|_| {
                         let i = rng.next_state();
-                        if i & 1 == 0 { Action::Sqrt } else { Action::MultiplyByTwo }
+                        if i & 1 == 0 {
+                            Action::Sqrt
+                        } else {
+                            Action::MultiplyByTwo
+                        }
                     })
                     .collect();
 
@@ -98,7 +88,9 @@ async fn async_main() {
                 let n = reply.len();
                 println!(
                     "State: ..., {}, {}, {}",
-                    reply[n-3], reply[n-2], reply[n-1],
+                    reply[n - 3],
+                    reply[n - 2],
+                    reply[n - 1],
                 );
             }
         });

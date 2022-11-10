@@ -2,19 +2,13 @@ mod common;
 
 use common::*;
 
-use febft::bft::prng;
-use febft::bft::threadpool;
+use febft::bft::async_runtime as rt;
 use febft::bft::collections::HashMap;
 use febft::bft::communication::NodeId;
-use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::prng;
+use febft::bft::threadpool;
+use febft::bft::{init, InitConfig};
 
 fn main() {
     let conf = InitConfig {
@@ -37,9 +31,7 @@ async fn async_main() {
         .map(|(id, sk)| (*id, sk.public_key().into()))
         .collect();
 
-    let pool = threadpool::Builder::new()
-        .num_threads(4)
-        .build();
+    let pool = threadpool::Builder::new().num_threads(4).build();
 
     let sk = secret_keys.remove(&id).unwrap();
     drop(secret_keys);
@@ -54,13 +46,9 @@ async fn async_main() {
         // clients
         NodeId::from(1000u32) => addr!("cli1000" => "127.0.0.1:11000")
     };
-    let client = setup_client(
-        pool,
-        id,
-        sk,
-        addrs,
-        public_keys,
-    ).await.unwrap();
+    let client = setup_client(pool, id, sk, addrs, public_keys)
+        .await
+        .unwrap();
 
     for _ in 0..2048 {
         let mut client = client.clone();
@@ -69,7 +57,11 @@ async fn async_main() {
             loop {
                 let request = {
                     let i = rng.next_state();
-                    if i & 1 == 0 { Action::Sqrt } else { Action::MultiplyByTwo }
+                    if i & 1 == 0 {
+                        Action::Sqrt
+                    } else {
+                        Action::MultiplyByTwo
+                    }
                 };
                 let reply = client.update(request).await;
                 println!("State: {}", reply);

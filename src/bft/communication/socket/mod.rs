@@ -10,9 +10,9 @@ mod async_std_tcp;
 mod rio_tcp;
 
 use std::io;
-use std::pin::Pin;
 use std::net::SocketAddr;
-use std::task::{Poll, Context};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures::io::{AsyncRead, AsyncWrite};
 
@@ -47,7 +47,9 @@ pub struct Socket {
 /// Initialize the sockets module.
 pub unsafe fn init() -> error::Result<()> {
     #[cfg(feature = "socket_rio_tcp")]
-    { rio_tcp::init()?; }
+    {
+        rio_tcp::init()?;
+    }
 
     Ok(())
 }
@@ -55,7 +57,9 @@ pub unsafe fn init() -> error::Result<()> {
 /// Drops the global data associated with sockets.
 pub unsafe fn drop() -> error::Result<()> {
     #[cfg(feature = "socket_rio_tcp")]
-    { rio_tcp::drop()?; }
+    {
+        rio_tcp::drop()?;
+    }
 
     Ok(())
 }
@@ -64,72 +68,74 @@ pub unsafe fn drop() -> error::Result<()> {
 pub async fn bind<A: Into<SocketAddr>>(addr: A) -> io::Result<Listener> {
     {
         #[cfg(feature = "socket_tokio_tcp")]
-        { tokio_tcp::bind(addr).await }
+        {
+            tokio_tcp::bind(addr).await
+        }
 
         #[cfg(feature = "socket_async_std_tcp")]
-        { async_std_tcp::bind(addr).await }
+        {
+            async_std_tcp::bind(addr).await
+        }
 
         #[cfg(feature = "socket_rio_tcp")]
-        { rio_tcp::bind(addr).await }
-    }.map(|inner| Listener { inner })
+        {
+            rio_tcp::bind(addr).await
+        }
+    }
+    .map(|inner| Listener { inner })
 }
 
 /// Connects to the remote node pointed to by the address `addr`.
 pub async fn connect<A: Into<SocketAddr>>(addr: A) -> io::Result<Socket> {
     {
         #[cfg(feature = "socket_tokio_tcp")]
-        { tokio_tcp::connect(addr).await }
+        {
+            tokio_tcp::connect(addr).await
+        }
 
         #[cfg(feature = "socket_async_std_tcp")]
-        { async_std_tcp::connect(addr).await }
+        {
+            async_std_tcp::connect(addr).await
+        }
 
         #[cfg(feature = "socket_rio_tcp")]
-        { rio_tcp::connect(addr).await }
-    }.map(|inner| Socket { inner })
+        {
+            rio_tcp::connect(addr).await
+        }
+    }
+    .map(|inner| Socket { inner })
 }
 
 impl Listener {
     pub async fn accept(&self) -> io::Result<Socket> {
-        self.inner.accept()
-            .await
-            .map(|inner| Socket { inner })
+        self.inner.accept().await.map(|inner| Socket { inner })
     }
 }
 
 impl AsyncRead for Socket {
     fn poll_read(
-        mut self: Pin<&mut Self>, 
-        cx: &mut Context<'_>, 
-        buf: &mut [u8]
-    ) -> Poll<io::Result<usize>>
-    {
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for Socket {
     fn poll_write(
-        mut self: Pin<&mut Self>, 
-        cx: &mut Context<'_>, 
-        buf: &[u8]
-    ) -> Poll<io::Result<usize>>
-    {
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>, 
-        cx: &mut Context<'_>
-    ) -> Poll<io::Result<()>>
-    {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_close(
-        mut self: Pin<&mut Self>, 
-        cx: &mut Context<'_>
-    ) -> Poll<io::Result<()>>
-    {
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_close(cx)
     }
 }

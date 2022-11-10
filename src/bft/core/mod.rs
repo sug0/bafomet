@@ -4,7 +4,7 @@ pub mod client;
 pub mod server;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::bft::error::*;
 
@@ -21,9 +21,8 @@ pub struct SystemParams {
 impl SystemParams {
     /// Creates a new instance of `SystemParams`.
     pub fn new(n: usize, f: usize) -> Result<Self> {
-        if n < 3*f + 1 {
-            return Err("Invalid params: n < 3f + 1")
-                .wrapped(ErrorKind::Core);
+        if n < 3 * f + 1 {
+            return Err("Invalid params: n < 3f + 1").wrapped(ErrorKind::Core);
         }
         Ok(SystemParams { n, f })
     }

@@ -10,47 +10,20 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::bft::error::*;
-use crate::bft::sync::Synchronizer;
-use crate::bft::crypto::hash::Digest;
+use crate::bft::collections::{self, HashMap};
+use crate::bft::communication::message::{CstMessage, CstMessageKind, Header, SystemMessage};
+use crate::bft::communication::{Node, NodeId};
+use crate::bft::consensus::log::{Checkpoint, DecisionLog, Log};
 use crate::bft::consensus::Consensus;
 use crate::bft::core::server::ViewInfo;
-use crate::bft::ordering::{
-    SeqNo,
-    Orderable,
-};
-use crate::bft::timeouts::{
-    TimeoutKind,
-    TimeoutsHandle,
-};
-use crate::bft::consensus::log::{
-    Log,
-    Checkpoint,
-    DecisionLog,
-};
-use crate::bft::communication::{
-    Node,
-    NodeId,
-};
-use crate::bft::communication::message::{
-    Header,
-    CstMessage,
-    SystemMessage,
-    CstMessageKind,
-};
-use crate::bft::executable::{
-    ExecutorHandle,
-    Service,
-    Request,
-    Reply,
-    State,
-};
-use crate::bft::collections::{
-    self,
-    HashMap,
-};
+use crate::bft::crypto::hash::Digest;
+use crate::bft::error::*;
+use crate::bft::executable::{ExecutorHandle, Reply, Request, Service, State};
+use crate::bft::ordering::{Orderable, SeqNo};
+use crate::bft::sync::Synchronizer;
+use crate::bft::timeouts::{TimeoutKind, TimeoutsHandle};
 
 enum ProtoPhase<S, O> {
     Init,
@@ -89,13 +62,8 @@ where
     // TODO: maybe try to optimize this, to avoid clone(),
     // which may be quite expensive depending on the size
     // of the state and the amount of batched requests
-    let state = recovery_state
-        .checkpoint
-        .state()
-        .clone();
-    let requests = recovery_state
-        .requests
-        .clone();
+    let state = recovery_state.checkpoint.state().clone();
+    let requests = recovery_state.requests.clone();
 
     // TODO: update pub/priv keys when reconfig is implemented?
 
@@ -182,7 +150,7 @@ pub enum CstStatus<S, O> {
     SeqNo(SeqNo),
     /// We have received and validated the state from
     /// a group of replicas.
-    State(RecoveryState<S, O>)
+    State(RecoveryState<S, O>),
 }
 
 /// Represents progress in the CST state machine.
@@ -257,7 +225,7 @@ where
             Err(_) => {
                 self.phase = ProtoPhase::WaitingCheckpoint(header, message);
                 return;
-            },
+            }
         };
         let reply = SystemMessage::Cst(CstMessage::new(
             message.sequence_number(),
@@ -280,23 +248,20 @@ where
                 let (header, message) = getmessage!(&mut self.phase);
                 self.process_reply_state(header, message, synchronizer, log, node);
                 CstStatus::Nil
-            },
+            }
             ProtoPhase::Init => {
                 let (header, message) = getmessage!(progress, CstStatus::Nil);
                 match message.kind() {
                     CstMessageKind::RequestLatestConsensusSeq => {
-                        let kind = CstMessageKind::ReplyLatestConsensusSeq(
-                            consensus.sequence_number(),
-                        );
-                        let reply = SystemMessage::Cst(CstMessage::new(
-                            message.sequence_number(),
-                            kind,
-                        ));
+                        let kind =
+                            CstMessageKind::ReplyLatestConsensusSeq(consensus.sequence_number());
+                        let reply =
+                            SystemMessage::Cst(CstMessage::new(message.sequence_number(), kind));
                         node.send(reply, header.from());
-                    },
+                    }
                     CstMessageKind::RequestState => {
                         self.process_reply_state(header, message, synchronizer, log, node);
-                    },
+                    }
                     // we are not running cst, so drop any reply msgs
                     //
                     // TODO: maybe inspect cid msgs, and passively start
@@ -305,7 +270,7 @@ where
                     _ => (),
                 }
                 CstStatus::Nil
-            },
+            }
             ProtoPhase::ReceivingCid(i) => {
                 let (_header, message) = getmessage!(progress, CstStatus::RequestLatestCid);
 
@@ -327,13 +292,13 @@ where
                             Ordering::Greater => {
                                 self.latest_cid = *seq;
                                 self.latest_cid_count = 1;
-                            },
+                            }
                             Ordering::Equal => {
                                 self.latest_cid_count += 1;
-                            },
+                            }
                             Ordering::Less => (),
                         }
-                    },
+                    }
                     // drop invalid message kinds
                     _ => return CstStatus::Running,
                 }
@@ -360,7 +325,7 @@ where
                     self.phase = ProtoPhase::ReceivingCid(i);
                     CstStatus::Running
                 }
-            },
+            }
             ProtoPhase::ReceivingState(i) => {
                 let (header, mut message) = getmessage!(progress, CstStatus::RequestState);
 
@@ -375,7 +340,8 @@ where
                     None => return CstStatus::Running,
                 };
 
-                let received_state = self.received_states
+                let received_state = self
+                    .received_states
                     .entry(header.digest().clone())
                     .or_insert(ReceivedState { count: 0, state });
 
@@ -398,20 +364,17 @@ where
 
                 // check if we have at least f+1 matching states
                 let digest = {
-                    let received_state = self.received_states
-                        .iter()
-                        .max_by_key(|(_, st)| st.count);
+                    let received_state = self.received_states.iter().max_by_key(|(_, st)| st.count);
                     match received_state {
                         Some((digest, _)) => digest.clone(),
                         None => {
                             self.received_states.clear();
                             return CstStatus::RequestState;
-                        },
+                        }
                     }
                 };
                 let received_state = {
-                    let received_state = self.received_states
-                        .remove(&digest);
+                    let received_state = self.received_states.remove(&digest);
                     self.received_states.clear();
                     received_state
                 };
@@ -422,12 +385,10 @@ where
                 // return the state
                 let f = synchronizer.view().params().f();
                 match received_state {
-                    Some(ReceivedState { count, state }) if count > f => {
-                        CstStatus::State(state)
-                    },
+                    Some(ReceivedState { count, state }) if count > f => CstStatus::State(state),
                     _ => CstStatus::RequestState,
                 }
-            },
+            }
         }
     }
 
@@ -454,11 +415,11 @@ where
             ProtoPhase::ReceivingCid(_) => {
                 self.curr_timeout *= 2;
                 CstStatus::RequestLatestCid
-            },
+            }
             ProtoPhase::ReceivingState(_) => {
                 self.curr_timeout *= 2;
                 CstStatus::RequestState
-            },
+            }
             // ignore timeouts if not receiving any kind
             // of state from peer nodes
             _ => CstStatus::Nil,
@@ -503,10 +464,7 @@ where
         timeouts.timeout(self.curr_timeout, TimeoutKind::Cst(cst_seq));
         self.phase = ProtoPhase::ReceivingState(0);
 
-        let message = SystemMessage::Cst(CstMessage::new(
-            cst_seq,
-            CstMessageKind::RequestState,
-        ));
+        let message = SystemMessage::Cst(CstMessage::new(cst_seq, CstMessageKind::RequestState));
         let targets = NodeId::targets(0..synchronizer.view().params().n());
         node.broadcast(message, targets);
     }

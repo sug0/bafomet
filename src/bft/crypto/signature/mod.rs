@@ -1,7 +1,7 @@
 //! Public key cryptographic operations.
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::bft::error::*;
 
@@ -49,7 +49,9 @@ impl KeyPair {
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let inner = {
             #[cfg(feature = "crypto_signature_ring_ed25519")]
-            { ring_ed25519::KeyPair::from_bytes(raw_bytes)? }
+            {
+                ring_ed25519::KeyPair::from_bytes(raw_bytes)?
+            }
         };
         Ok(KeyPair { inner })
     }
@@ -71,7 +73,6 @@ impl KeyPair {
         let inner = self.inner.sign(message)?;
         Ok(Signature { inner })
     }
-
 }
 
 impl<'a> From<PublicKeyRef<'a>> for PublicKey {
@@ -93,7 +94,9 @@ impl PublicKey {
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let inner = {
             #[cfg(feature = "crypto_signature_ring_ed25519")]
-            { ring_ed25519::PublicKey::from_bytes(raw_bytes)? }
+            {
+                ring_ed25519::PublicKey::from_bytes(raw_bytes)?
+            }
         };
         Ok(PublicKey { inner })
     }
@@ -111,14 +114,18 @@ impl Signature {
     /// Length in bytes required to represent a `Signature` in memory.
     pub const LENGTH: usize = {
         #[cfg(feature = "crypto_signature_ring_ed25519")]
-        { ring_ed25519::Signature::LENGTH }
+        {
+            ring_ed25519::Signature::LENGTH
+        }
     };
 
     /// Constructs a `Signature` from a byte buffer of appropriate size.
     pub fn from_bytes(raw_bytes: &[u8]) -> Result<Self> {
         let inner = {
             #[cfg(feature = "crypto_signature_ring_ed25519")]
-            { ring_ed25519::Signature::from_bytes(raw_bytes)? }
+            {
+                ring_ed25519::Signature::from_bytes(raw_bytes)?
+            }
         };
         Ok(Signature { inner })
     }

@@ -2,22 +2,12 @@ mod common;
 
 use std::time::Duration;
 
+use febft::bft::async_runtime as rt;
 use febft::bft::communication::channel;
 use febft::bft::communication::message::Message;
-use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::timeouts::{
-    Timeouts,
-    TimeoutKind,
-};
-use febft::bft::executable::{
-    State,
-    Request,
-    Reply,
-};
+use febft::bft::executable::{Reply, Request, State};
+use febft::bft::timeouts::{TimeoutKind, Timeouts};
+use febft::bft::{init, InitConfig};
 
 type Sv = common::CalcService;
 

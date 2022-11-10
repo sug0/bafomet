@@ -1,4 +1,4 @@
-//! A thread pool abstraction over a range of other crates. 
+//! A thread pool abstraction over a range of other crates.
 
 #[cfg(feature = "threadpool_crossbeam")]
 mod crossbeam;
@@ -35,10 +35,14 @@ impl Builder {
     pub fn new() -> Builder {
         let inner = {
             #[cfg(feature = "threadpool_crossbeam")]
-            { crossbeam::Builder::new() }
+            {
+                crossbeam::Builder::new()
+            }
 
             #[cfg(feature = "threadpool_cthpool")]
-            { cthpool::Builder::new() }
+            {
+                cthpool::Builder::new()
+            }
         };
         Builder { inner }
     }

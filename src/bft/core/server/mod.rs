@@ -3,60 +3,24 @@
 use std::time::Duration;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::SystemParams;
-use crate::bft::error::*;
 use crate::bft::async_runtime as rt;
-use crate::bft::ordering::{
-    SeqNo,
-    Orderable,
-};
-use crate::bft::sync::{
-    Synchronizer,
-    SynchronizerStatus,
-    SynchronizerPollStatus,
-};
-use crate::bft::timeouts::{
-    Timeouts,
-    TimeoutKind,
-    TimeoutsHandle,
-};
-use crate::bft::cst::{
-    install_recovery_state,
-    CollabStateTransfer,
-    CstProgress,
-    CstStatus,
-};
-use crate::bft::consensus::log::{
-    Info,
-    Log,
-};
-use crate::bft::consensus::{
-    Consensus,
-    ConsensusStatus,
-    ConsensusPollStatus,
-};
-use crate::bft::executable::{
-    Reply,
-    State,
-    Request,
-    Service,
-    Executor,
-    ExecutorHandle,
-    UpdateBatchReplies,
-};
-use crate::bft::communication::{
-    Node,
-    NodeId,
-    NodeConfig,
-};
 use crate::bft::communication::message::{
-    ForwardedRequestsMessage,
-    SystemMessage,
-    ReplyMessage,
-    Message,
+    ForwardedRequestsMessage, Message, ReplyMessage, SystemMessage,
 };
+use crate::bft::communication::{Node, NodeConfig, NodeId};
+use crate::bft::consensus::log::{Info, Log};
+use crate::bft::consensus::{Consensus, ConsensusPollStatus, ConsensusStatus};
+use crate::bft::cst::{install_recovery_state, CollabStateTransfer, CstProgress, CstStatus};
+use crate::bft::error::*;
+use crate::bft::executable::{
+    Executor, ExecutorHandle, Reply, Request, Service, State, UpdateBatchReplies,
+};
+use crate::bft::ordering::{Orderable, SeqNo};
+use crate::bft::sync::{Synchronizer, SynchronizerPollStatus, SynchronizerStatus};
+use crate::bft::timeouts::{TimeoutKind, Timeouts, TimeoutsHandle};
 
 enum ReplicaPhase {
     // the replica is retrieving state from
@@ -175,15 +139,10 @@ where
         let (node, rogue) = Node::bootstrap(node_config).await?;
 
         // start executor
-        let executor = Executor::new(
-            node.master_channel(),
-            service,
-        )?;
+        let executor = Executor::new(node.master_channel(), service)?;
 
         // start timeouts handler
-        let timeouts = Timeouts::new(
-            node.master_channel(),
-        );
+        let timeouts = Timeouts::new(node.master_channel());
 
         // TODO: get log from persistent storage
         let log = Log::new(batch_size);
@@ -213,25 +172,28 @@ where
                 Message::System(header, message) => {
                     match message {
                         request @ SystemMessage::Request(_) => {
-                            replica.synchronizer.watch_request(
-                                header.unique_digest(), 
-                                &replica.timeouts,
-                            );
+                            replica
+                                .synchronizer
+                                .watch_request(header.unique_digest(), &replica.timeouts);
                             replica.log.insert(header, request);
-                        },
+                        }
                         SystemMessage::Consensus(message) => {
                             replica.consensus.queue(header, message);
-                        },
+                        }
                         // FIXME: handle rogue reply messages
                         SystemMessage::Reply(_) => panic!("Rogue reply message detected"),
                         // FIXME: handle rogue cst messages
                         SystemMessage::Cst(_) => panic!("Rogue cst message detected"),
                         // FIXME: handle rogue view change messages
-                        SystemMessage::ViewChange(_) => panic!("Rogue view change message detected"),
+                        SystemMessage::ViewChange(_) => {
+                            panic!("Rogue view change message detected")
+                        }
                         // FIXME: handle rogue forwarded requests messages
-                        SystemMessage::ForwardedRequests(_) => panic!("Rogue forwarded requests message detected"),
+                        SystemMessage::ForwardedRequests(_) => {
+                            panic!("Rogue forwarded requests message detected")
+                        }
                     }
-                },
+                }
                 // ignore other messages for now
                 _ => (),
             }
@@ -262,20 +224,18 @@ where
                         // FIXME: is this the correct behavior? to save forwarded requests
                         // while we are retrieving state...
                         self.forwarded_requests_received(requests);
-                    },
+                    }
                     request @ SystemMessage::Request(_) => {
-                        self.synchronizer.watch_request(
-                            header.unique_digest(), 
-                            &self.timeouts,
-                        );
+                        self.synchronizer
+                            .watch_request(header.unique_digest(), &self.timeouts);
                         self.log.insert(header, request);
-                    },
+                    }
                     SystemMessage::Consensus(message) => {
                         self.consensus.queue(header, message);
-                    },
+                    }
                     SystemMessage::ViewChange(message) => {
                         self.synchronizer.queue(header, message);
-                    },
+                    }
                     SystemMessage::Cst(message) => {
                         let status = self.cst.process_message(
                             CstProgress::Message(header, message),
@@ -294,10 +254,9 @@ where
                                     &mut self.executor,
                                     &mut self.consensus,
                                 )?;
-                                self.phase = self.phase_stack
-                                    .take()
-                                    .unwrap_or(ReplicaPhase::NormalPhase);
-                            },
+                                self.phase =
+                                    self.phase_stack.take().unwrap_or(ReplicaPhase::NormalPhase);
+                            }
                             CstStatus::SeqNo(seq) => {
                                 if self.consensus.sequence_number() < seq {
                                     // this step will allow us to ignore any messages
@@ -317,40 +276,41 @@ where
                                 } else {
                                     self.phase = ReplicaPhase::NormalPhase;
                                 }
-                            },
+                            }
                             CstStatus::RequestLatestCid => {
                                 self.cst.request_latest_consensus_seq_no(
                                     &self.synchronizer,
                                     &self.timeouts,
                                     &mut self.node,
                                 );
-                            },
+                            }
                             CstStatus::RequestState => {
                                 self.cst.request_latest_state(
                                     &self.synchronizer,
                                     &self.timeouts,
                                     &mut self.node,
                                 );
-                            },
+                            }
                             // should not happen...
                             CstStatus::Nil => {
                                 return Err("Invalid state reached!")
                                     .wrapped(ErrorKind::CoreServer);
-                            },
+                            }
                         }
-                    },
+                    }
                     // FIXME: handle rogue reply messages
                     SystemMessage::Reply(_) => panic!("Rogue reply message detected"),
                 }
-            },
+            }
             Message::Timeout(timeout_kind) => {
                 self.timeout_received(timeout_kind);
-            },
-            Message::ExecutionFinished(batch) | Message::ExecutionFinishedWithAppstate(batch, _) => {
+            }
+            Message::ExecutionFinished(batch)
+            | Message::ExecutionFinishedWithAppstate(batch, _) => {
                 // TODO: verify if ignoring the checkpoint state while
                 // receiving state from peer nodes is correct
                 self.execution_finished(batch);
-            },
+            }
             Message::ConnectedTx(id, sock) => self.node.handle_connected_tx(id, sock),
             Message::ConnectedRx(id, sock) => self.node.handle_connected_rx(id, sock),
             // TODO: node disconnected on send side
@@ -365,12 +325,10 @@ where
     async fn update_sync_phase(&mut self) -> Result<bool> {
         // retrieve a view change message to be processed
         let message = match self.synchronizer.poll() {
-            SynchronizerPollStatus::Recv => {
-                self.node.receive().await?
-            },
+            SynchronizerPollStatus::Recv => self.node.receive().await?,
             SynchronizerPollStatus::NextMessage(h, m) => {
                 Message::System(h, SystemMessage::ViewChange(m))
-            },
+            }
             SynchronizerPollStatus::ResumeViewChange => {
                 self.synchronizer.resume_view_change(
                     &mut self.log,
@@ -379,7 +337,7 @@ where
                 );
                 self.phase = ReplicaPhase::NormalPhase;
                 return Ok(false);
-            },
+            }
         };
 
         match message {
@@ -387,17 +345,15 @@ where
                 match message {
                     SystemMessage::Consensus(message) => {
                         self.consensus.queue(header, message);
-                    },
+                    }
                     SystemMessage::ForwardedRequests(requests) => {
                         self.forwarded_requests_received(requests);
-                    },
+                    }
                     request @ SystemMessage::Request(_) => {
-                        self.synchronizer.watch_request(
-                            header.unique_digest(), 
-                            &self.timeouts,
-                        );
+                        self.synchronizer
+                            .watch_request(header.unique_digest(), &self.timeouts);
                         self.log.insert(header, request);
-                    },
+                    }
                     SystemMessage::Cst(message) => {
                         let status = self.cst.process_message(
                             CstProgress::Message(header, message),
@@ -409,9 +365,11 @@ where
                         match status {
                             CstStatus::Nil => (),
                             // should not happen...
-                            _ => return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer),
+                            _ => {
+                                return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer)
+                            }
                         }
-                    },
+                    }
                     SystemMessage::ViewChange(message) => {
                         let status = self.synchronizer.process_message(
                             header,
@@ -428,19 +386,21 @@ where
                             SynchronizerStatus::NewView => {
                                 self.phase = ReplicaPhase::NormalPhase;
                                 return Ok(false);
-                            },
+                            }
                             SynchronizerStatus::RunCst => {
                                 self.phase = ReplicaPhase::RetrievingState;
                                 self.phase_stack = Some(ReplicaPhase::SyncPhase);
-                            },
+                            }
                             // should not happen...
-                            _ => return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer),
+                            _ => {
+                                return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer)
+                            }
                         }
-                    },
+                    }
                     // FIXME: handle rogue reply messages
                     SystemMessage::Reply(_) => panic!("Rogue reply message detected"),
                 }
-            },
+            }
             //////// XXX XXX XXX XXX
             //
             // TODO: check if simply copying the behavior over from the
@@ -449,13 +409,13 @@ where
             //
             Message::Timeout(timeout_kind) => {
                 self.timeout_received(timeout_kind);
-            },
+            }
             Message::ExecutionFinished(batch) => {
                 self.execution_finished(batch);
-            },
+            }
             Message::ExecutionFinishedWithAppstate(batch, appstate) => {
                 self.execution_finished_with_appstate(batch, appstate)?;
-            },
+            }
             Message::ConnectedTx(id, sock) => self.node.handle_connected_tx(id, sock),
             Message::ConnectedRx(id, sock) => self.node.handle_connected_rx(id, sock),
             // TODO: node disconnected on send side
@@ -484,18 +444,17 @@ where
         // the order of the next consensus message is guaranteed by
         // `TboQueue`, in the consensus module.
         let message = match self.consensus.poll(&self.log) {
-            ConsensusPollStatus::Recv => {
-                self.node.receive().await?
-            },
+            ConsensusPollStatus::Recv => self.node.receive().await?,
             ConsensusPollStatus::NextMessage(h, m) => {
                 Message::System(h, SystemMessage::Consensus(m))
-            },
+            }
             ConsensusPollStatus::TryProposeAndRecv => {
                 if let Some(digests) = self.log.next_batch() {
-                    self.consensus.propose(digests, &self.synchronizer, &mut self.node);
+                    self.consensus
+                        .propose(digests, &self.synchronizer, &mut self.node);
                 }
                 self.node.receive().await?
-            },
+            }
         };
 
         match message {
@@ -503,14 +462,12 @@ where
                 match message {
                     SystemMessage::ForwardedRequests(requests) => {
                         self.forwarded_requests_received(requests);
-                    },
+                    }
                     request @ SystemMessage::Request(_) => {
-                        self.synchronizer.watch_request(
-                            header.unique_digest(), 
-                            &self.timeouts,
-                        );
+                        self.synchronizer
+                            .watch_request(header.unique_digest(), &self.timeouts);
                         self.log.insert(header, request);
-                    },
+                    }
                     SystemMessage::Cst(message) => {
                         let status = self.cst.process_message(
                             CstProgress::Message(header, message),
@@ -522,9 +479,11 @@ where
                         match status {
                             CstStatus::Nil => (),
                             // should not happen...
-                            _ => return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer),
+                            _ => {
+                                return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer)
+                            }
                         }
-                    },
+                    }
                     SystemMessage::ViewChange(message) => {
                         let status = self.synchronizer.process_message(
                             header,
@@ -539,9 +498,11 @@ where
                             SynchronizerStatus::Nil => (),
                             SynchronizerStatus::Running => self.phase = ReplicaPhase::SyncPhase,
                             // should not happen...
-                            _ => return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer),
+                            _ => {
+                                return Err("Invalid state reached!").wrapped(ErrorKind::CoreServer)
+                            }
                         }
-                    },
+                    }
                     SystemMessage::Consensus(message) => {
                         let seq = self.consensus.sequence_number();
                         let status = self.consensus.process_message(
@@ -568,16 +529,14 @@ where
                                 let (info, batch) = self.log.finalize_batch(seq, digests)?;
                                 match info {
                                     // normal execution
-                                    Info::Nil => self.executor.queue_update(
-                                        batch,
-                                    )?,
+                                    Info::Nil => self.executor.queue_update(batch)?,
                                     // execute and begin local checkpoint
-                                    Info::BeginCheckpoint => self.executor.queue_update_and_get_appstate(
-                                        batch,
-                                    )?,
+                                    Info::BeginCheckpoint => {
+                                        self.executor.queue_update_and_get_appstate(batch)?
+                                    }
                                 }
                                 self.consensus.next_instance();
-                            },
+                            }
                         }
 
                         // we processed a consensus message,
@@ -588,20 +547,20 @@ where
                         // will probably force a value from the
                         // TBO queue in the consensus layer
                         rt::yield_now().await;
-                    },
+                    }
                     // FIXME: handle rogue reply messages
                     SystemMessage::Reply(_) => panic!("Rogue reply message detected"),
                 }
-            },
+            }
             Message::Timeout(timeout_kind) => {
                 self.timeout_received(timeout_kind);
-            },
+            }
             Message::ExecutionFinished(batch) => {
                 self.execution_finished(batch);
-            },
+            }
             Message::ExecutionFinishedWithAppstate(batch, appstate) => {
                 self.execution_finished_with_appstate(batch, appstate)?;
-            },
+            }
             Message::ConnectedTx(id, sock) => self.node.handle_connected_tx(id, sock),
             Message::ConnectedRx(id, sock) => self.node.handle_connected_rx(id, sock),
             // TODO: node disconnected on send side
@@ -616,10 +575,7 @@ where
         // deliver replies to clients
         for update_reply in batch.into_inner() {
             let (peer_id, digest, payload) = update_reply.into_inner();
-            let message = SystemMessage::Reply(ReplyMessage::new(
-                digest,
-                payload,
-            ));
+            let message = SystemMessage::Reply(ReplyMessage::new(digest, payload));
             self.node.send(message, peer_id);
         }
     }
@@ -645,15 +601,9 @@ where
         Ok(())
     }
 
-    fn forwarded_requests_received(
-        &mut self,
-        requests: ForwardedRequestsMessage<Request<S>>,
-    ) {
-        self.synchronizer.watch_forwarded_requests(
-            requests,
-            &self.timeouts,
-            &mut self.log,
-        );
+    fn forwarded_requests_received(&mut self, requests: ForwardedRequestsMessage<Request<S>>) {
+        self.synchronizer
+            .watch_forwarded_requests(requests, &self.timeouts, &mut self.log);
     }
 
     fn timeout_received(&mut self, timeout_kind: TimeoutKind) {
@@ -669,7 +619,7 @@ where
                             &mut self.node,
                         );
                         self.phase = ReplicaPhase::RetrievingState;
-                    },
+                    }
                     CstStatus::RequestState => {
                         self.cst.request_latest_state(
                             &self.synchronizer,
@@ -677,37 +627,33 @@ where
                             &mut self.node,
                         );
                         self.phase = ReplicaPhase::RetrievingState;
-                    },
+                    }
                     // nothing to do
                     _ => (),
                 }
-            },
+            }
             TimeoutKind::ClientRequests(timeout_seq) => {
-                let status = self.synchronizer
+                let status = self
+                    .synchronizer
                     .client_requests_timed_out(timeout_seq, &self.timeouts);
 
                 match status {
                     SynchronizerStatus::RequestsTimedOut { forwarded, stopped } => {
                         if forwarded.len() > 0 {
                             let requests = self.log.clone_requests(&forwarded);
-                            self.synchronizer.forward_requests(
-                                requests,
-                                &mut self.node,
-                            );
+                            self.synchronizer.forward_requests(requests, &mut self.node);
                         }
                         if stopped.len() > 0 {
                             let stopped = self.log.clone_requests(&stopped);
-                            self.synchronizer.begin_view_change(
-                                Some(stopped),
-                                &mut self.node,
-                            );
+                            self.synchronizer
+                                .begin_view_change(Some(stopped), &mut self.node);
                             self.phase = ReplicaPhase::SyncPhase;
                         }
-                    },
+                    }
                     // nothing to do
                     _ => (),
                 }
-            },
+            }
         }
     }
 }

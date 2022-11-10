@@ -1,6 +1,6 @@
-use std::pin::Pin;
 use std::future::Future;
-use std::task::{Poll, Context};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures::future::FusedFuture;
 
@@ -35,7 +35,9 @@ pub fn new_bounded<T>(bound: usize) -> (ChannelTx<T>, ChannelRx<T>) {
 impl<T> ChannelTx<T> {
     #[inline]
     pub async fn send(&mut self, message: T) -> Result<()> {
-        self.inner.send_async(message).await
+        self.inner
+            .send_async(message)
+            .await
             .simple(ErrorKind::CommunicationChannelFlumeMpmc)
     }
 }

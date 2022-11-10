@@ -14,5 +14,8 @@ pub fn init(num_threads: usize) -> Result<Runtime> {
         .thread_stack_size(2 * 1024 * 1024)
         .enable_all()
         .build()
-        .wrapped_msg(ErrorKind::AsyncRuntimeTokio, "Failed to build tokio runtime")
+        .wrapped_msg(
+            ErrorKind::AsyncRuntimeTokio,
+            "Failed to build tokio runtime",
+        )
 }

@@ -1,1 +1,1 @@
-pub use threadpool_crossbeam_channel::{ThreadPool, Builder};
+pub use threadpool_crossbeam_channel::{Builder, ThreadPool};

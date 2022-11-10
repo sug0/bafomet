@@ -9,22 +9,17 @@ mod flume_mpmc;
 #[cfg(feature = "channel_async_channel_mpmc")]
 mod async_channel_mpmc;
 
-use std::pin::Pin;
 use std::future::Future;
-use std::task::{Poll, Context};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use futures::select;
 use futures::future::FusedFuture;
+use futures::select;
 
-use crate::bft::error::*;
 use crate::bft::communication::message::{
-    Header,
-    Message,
-    SystemMessage,
-    RequestMessage,
-    ReplyMessage,
-    ConsensusMessage,
+    ConsensusMessage, Header, Message, ReplyMessage, RequestMessage, SystemMessage,
 };
+use crate::bft::error::*;
 
 /// General purpose channel's sending half.
 pub struct ChannelTx<T> {
@@ -76,13 +71,19 @@ impl<T> Clone for ChannelTx<T> {
 pub fn new_bounded<T>(bound: usize) -> (ChannelTx<T>, ChannelRx<T>) {
     let (tx, rx) = {
         #[cfg(feature = "channel_futures_mpsc")]
-        { futures_mpsc::new_bounded(bound) }
+        {
+            futures_mpsc::new_bounded(bound)
+        }
 
         #[cfg(feature = "channel_flume_mpmc")]
-        { flume_mpmc::new_bounded(bound) }
+        {
+            flume_mpmc::new_bounded(bound)
+        }
 
         #[cfg(feature = "channel_async_channel_mpmc")]
-        { async_channel_mpmc::new_bounded(bound) }
+        {
+            async_channel_mpmc::new_bounded(bound)
+        }
     };
     let tx = ChannelTx { inner: tx };
     let rx = ChannelRx { inner: rx };
@@ -140,7 +141,9 @@ pub struct MessageChannelRx<S, O, P> {
 
 /// Creates a new channel that can queue up to `bound` messages
 /// from different async senders.
-pub fn new_message_channel<S, O, P>(bound: usize) -> (MessageChannelTx<S, O, P>, MessageChannelRx<S, O, P>) {
+pub fn new_message_channel<S, O, P>(
+    bound: usize,
+) -> (MessageChannelTx<S, O, P>, MessageChannelRx<S, O, P>) {
     let (c_tx, c_rx) = new_bounded(bound);
     let (r_tx, r_rx) = new_bounded(bound);
     let (rr_tx, rr_rx) = new_bounded(bound);
@@ -174,31 +177,21 @@ impl<S, O, P> Clone for MessageChannelTx<S, O, P> {
 impl<S, O, P> MessageChannelTx<S, O, P> {
     pub async fn send(&mut self, message: Message<S, O, P>) -> Result<()> {
         match message {
-            Message::System(header, message) => {
-                match message {
-                    SystemMessage::Request(message) => {
-                        self.requests.send((header, message)).await
-                    },
-                    SystemMessage::Reply(message) => {
-                        self.replies.send((header, message)).await
-                    },
-                    SystemMessage::Consensus(message) => {
-                        self.consensus.send((header, message)).await
-                    },
-                    message @ SystemMessage::Cst(_) => {
-                        self.other.send(Message::System(header, message)).await
-                    },
-                    message @ SystemMessage::ViewChange(_) => {
-                        self.other.send(Message::System(header, message)).await
-                    },
-                    message @ SystemMessage::ForwardedRequests(_) => {
-                        self.other.send(Message::System(header, message)).await
-                    },
+            Message::System(header, message) => match message {
+                SystemMessage::Request(message) => self.requests.send((header, message)).await,
+                SystemMessage::Reply(message) => self.replies.send((header, message)).await,
+                SystemMessage::Consensus(message) => self.consensus.send((header, message)).await,
+                message @ SystemMessage::Cst(_) => {
+                    self.other.send(Message::System(header, message)).await
+                }
+                message @ SystemMessage::ViewChange(_) => {
+                    self.other.send(Message::System(header, message)).await
+                }
+                message @ SystemMessage::ForwardedRequests(_) => {
+                    self.other.send(Message::System(header, message)).await
                 }
             },
-            _ => {
-                self.other.send(message).await
-            },
+            _ => self.other.send(message).await,
         }
     }
 }

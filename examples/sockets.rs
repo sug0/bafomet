@@ -1,27 +1,16 @@
-use std::time::Duration;
-use std::net::SocketAddr;
 use std::io;
+use std::net::SocketAddr;
+use std::time::Duration;
 
+use futures::io::{AsyncReadExt, AsyncWriteExt};
 use futures_timer::Delay;
-use futures::io::{
-    AsyncReadExt,
-    AsyncWriteExt,
-};
 
 use febft::bft::async_runtime as rt;
-use febft::bft::{
-    init,
-    InitConfig,
-};
-use febft::bft::communication::socket::{
-    self,
-    Socket,
-};
+use febft::bft::communication::socket::{self, Socket};
+use febft::bft::{init, InitConfig};
 
 fn main() {
-    let conf = InitConfig {
-        async_threads: 4,
-    };
+    let conf = InitConfig { async_threads: 4 };
     let _guard = unsafe { init(conf).unwrap() };
     rt::block_on(client_main()).unwrap();
 }

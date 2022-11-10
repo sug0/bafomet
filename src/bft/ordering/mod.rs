@@ -1,23 +1,15 @@
 //! Ordering messages of the sub-protocols in `febft`.
 
-use std::cmp::{
-    PartialOrd,
-    PartialEq,
-    Ordering,
-};
+use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::collections::VecDeque;
 
-use either::{
-    Left,
-    Right,
-    Either,
-};
+use either::{Either, Left, Right};
 
-use crate::bft::consensus::log;
 use crate::bft::communication::message::StoredMessage;
+use crate::bft::consensus::log;
 
 #[cfg(feature = "serialize_serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Represents a sequence number attributed to a client request
 /// during a `Consensus` instance.
@@ -57,7 +49,7 @@ impl PartialOrd for SeqNo {
         Some(match self.index(*other) {
             Right(0) => Ordering::Equal,
             Left(InvalidSeqNo::Small) => Ordering::Less,
-             _ => Ordering::Greater,
+            _ => Ordering::Greater,
         })
     }
 }
@@ -85,9 +77,7 @@ impl SeqNo {
             let index = (self.0).wrapping_sub(other.0);
             if index < OVERFLOW_THRES_NEG || index > OVERFLOW_THRES_POS {
                 // guard against overflows
-                i32::MAX
-                    .wrapping_add(index)
-                    .wrapping_add(1)
+                i32::MAX.wrapping_add(index).wrapping_add(1)
             } else {
                 index
             }
@@ -137,7 +127,7 @@ pub fn tbo_queue_message<M: Orderable>(
             // NOTE: alternatively, if this seq no pertains to consensus,
             // we can try running the state transfer protocol
             return;
-        },
+        }
     };
     if index >= tbo.len() {
         let len = index - tbo.len() + 1;
@@ -148,15 +138,13 @@ pub fn tbo_queue_message<M: Orderable>(
 
 /// Takes an internal queue of a `TboQueue` (e.g. the one used in the consensus
 /// module), and drops messages pertaining to the last sequence number.
-pub fn tbo_advance_message_queue<M>(
-    tbo: &mut VecDeque<VecDeque<StoredMessage<M>>>,
-) {
+pub fn tbo_advance_message_queue<M>(tbo: &mut VecDeque<VecDeque<StoredMessage<M>>>) {
     match tbo.pop_front() {
         Some(mut vec) => {
             // recycle memory
             vec.clear();
             tbo.push_back(vec);
-        },
+        }
         None => (),
     }
 }

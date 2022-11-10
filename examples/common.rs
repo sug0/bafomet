@@ -1,55 +1,32 @@
 #![allow(dead_code)]
 
 use std::fs::File;
-use std::net::SocketAddr;
 use std::io::{BufReader, Read, Write};
+use std::net::SocketAddr;
 
 use rustls::{
-    internal::pemfile,
-    ServerConfig,
-    ClientConfig,
-    RootCertStore,
-    AllowAnyAuthenticatedClient,
+    internal::pemfile, AllowAnyAuthenticatedClient, ClientConfig, RootCertStore, ServerConfig,
 };
-use serde::{
-    Serialize,
-    Deserialize,
-};
+use serde::{Deserialize, Serialize};
 
-use febft::bft::error::*;
-use febft::bft::ordering::SeqNo;
-use febft::bft::executable::Service;
 use febft::bft::collections::HashMap;
-use febft::bft::threadpool::ThreadPool;
+use febft::bft::communication::message::{Message, SystemMessage};
 use febft::bft::communication::serialize::SharedData;
-use febft::bft::communication::message::{
-    Message,
-    SystemMessage,
-};
-use febft::bft::communication::{
-    Node,
-    NodeId,
-    NodeConfig,
-};
-use febft::bft::crypto::signature::{
-    KeyPair,
-    PublicKey,
-};
-use febft::bft::core::client::{
-    self,
-    Client,
-};
-use febft::bft::core::server::{
-    Replica,
-    ReplicaConfig,
-};
+use febft::bft::communication::{Node, NodeConfig, NodeId};
+use febft::bft::core::client::{self, Client};
+use febft::bft::core::server::{Replica, ReplicaConfig};
+use febft::bft::crypto::signature::{KeyPair, PublicKey};
+use febft::bft::error::*;
+use febft::bft::executable::Service;
+use febft::bft::ordering::SeqNo;
+use febft::bft::threadpool::ThreadPool;
 
 #[macro_export]
 macro_rules! addr {
     ($h:expr => $a:expr) => {{
         let addr: ::std::net::SocketAddr = $a.parse().unwrap();
         (addr, String::from($h))
-    }}
+    }};
 }
 
 #[macro_export]
@@ -127,9 +104,7 @@ pub async fn setup_client(
     pk: HashMap<NodeId, PublicKey>,
 ) -> Result<Client<CalcData>> {
     let node = node_config(&t, id, sk, addrs, pk).await;
-    let conf = client::ClientConfig {
-        node,
-    };
+    let conf = client::ClientConfig { node };
     Client::bootstrap(conf).await
 }
 
@@ -182,7 +157,7 @@ async fn get_server_config(t: &ThreadPool, id: NodeId) -> ServerConfig {
         // configure our cert chain and secret key
         let sk = {
             let mut file = if id < 4 {
-                open_file(&format!("./ca-root/cop0{}/cop0{}.key", id+1, id+1))
+                open_file(&format!("./ca-root/cop0{}/cop0{}.key", id + 1, id + 1))
             } else {
                 open_file(&format!("./ca-root/cli{}/cli{}.key", id, id))
             };
@@ -191,7 +166,7 @@ async fn get_server_config(t: &ThreadPool, id: NodeId) -> ServerConfig {
         };
         let chain = {
             let mut file = if id < 4 {
-                open_file(&format!("./ca-root/cop0{}/cop0{}.crt", id+1, id+1))
+                open_file(&format!("./ca-root/cop0{}/cop0{}.crt", id + 1, id + 1))
             } else {
                 open_file(&format!("./ca-root/cli{}/cli{}.crt", id, id))
             };
@@ -222,7 +197,7 @@ async fn get_client_config(t: &ThreadPool, id: NodeId) -> ClientConfig {
         // configure our cert chain and secret key
         let sk = {
             let mut file = if id < 4 {
-                open_file(&format!("./ca-root/cop0{}/cop0{}.key", id+1, id+1))
+                open_file(&format!("./ca-root/cop0{}/cop0{}.key", id + 1, id + 1))
             } else {
                 open_file(&format!("./ca-root/cli{}/cli{}.key", id, id))
             };
@@ -231,7 +206,7 @@ async fn get_client_config(t: &ThreadPool, id: NodeId) -> ClientConfig {
         };
         let chain = {
             let mut file = if id < 4 {
-                open_file(&format!("./ca-root/cop0{}/cop0{}.crt", id+1, id+1))
+                open_file(&format!("./ca-root/cop0{}/cop0{}.crt", id + 1, id + 1))
             } else {
                 open_file(&format!("./ca-root/cli{}/cli{}.crt", id, id))
             };
@@ -266,34 +241,30 @@ impl SharedData for CalcData {
 
     fn serialize_state<W>(w: W, s: &f32) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
-        bincode::serialize_into(w, s)
-            .wrapped(ErrorKind::Communication)
+        bincode::serialize_into(w, s).wrapped(ErrorKind::Communication)
     }
 
     fn deserialize_state<R>(r: R) -> Result<f32>
     where
-        R: Read
+        R: Read,
     {
-        bincode::deserialize_from(r)
-            .wrapped(ErrorKind::Communication)
+        bincode::deserialize_from(r).wrapped(ErrorKind::Communication)
     }
 
     fn serialize_message<W>(w: W, m: &SystemMessage<f32, Action, f32>) -> Result<()>
     where
-        W: Write
+        W: Write,
     {
-        bincode::serialize_into(w, m)
-            .wrapped(ErrorKind::Communication)
+        bincode::serialize_into(w, m).wrapped(ErrorKind::Communication)
     }
 
     fn deserialize_message<R>(r: R) -> Result<SystemMessage<f32, Action, f32>>
     where
-        R: Read
+        R: Read,
     {
-        bincode::deserialize_from(r)
-            .wrapped(ErrorKind::Communication)
+        bincode::deserialize_from(r).wrapped(ErrorKind::Communication)
     }
 }
 
