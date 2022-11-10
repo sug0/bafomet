@@ -1,6 +1,7 @@
 # TODO
 
 * fix clippy warnings
+* tag `Node` type with `Client` or `Replica` marker types
 * replace `globals` with something more secure,
   that doesn't require unsafe code
 * add some sort of ABCI-like API?
