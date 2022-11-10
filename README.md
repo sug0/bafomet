@@ -87,3 +87,7 @@ The code is organized as follows:
 
 Other modules should be somewhat self explanatory, especially if you read
 the documentation generated with `cargo doc --features expose_impl` for `bafomet`.
+
+# Licensing
+
+Choose the MIT or Apache license at your option!
