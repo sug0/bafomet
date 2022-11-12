@@ -26,3 +26,11 @@
 * handle clients disconnecting
 * organize log as a merkle tree, to be able to request
   arbitrary proofs?
+* separate code into different sub-crates?
+    * maybe `communication` code should just be a trait
+      that can be implemented by the user? and we provide
+      some impls for this trait.
+    * try to make most things a trait? should remove feature
+      flag spaghetti from the code
+* remove batching code from replicas
+    * new design: <https://u.sicp.me/ftndz.png>
