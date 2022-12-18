@@ -34,3 +34,9 @@
       flag spaghetti from the code
 * remove batching code from replicas
     * new design: <https://u.sicp.me/ftndz.png>
+* P2P network keeping track of the latest view; views may
+  be updated across epochs; epochs change automatically
+  every X consensus instances; replicas from the current
+  epoch must sign the view of the next epoch, whose F
+  parameter may be updated; this means that the current
+  view must always know the view of the next epoch!
