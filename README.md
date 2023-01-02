@@ -1,5 +1,7 @@
 Evil Byzantine fault tolerant middleware library/framework!
 
+This project forks an early version of [FeBFT](https://github.com/SecureSolutionsLab/febft).
+
 ---
 
 # A bit of context
