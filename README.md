@@ -34,7 +34,9 @@ consult the following papers:
 * Bessani, Alysson, Joao Sousa, and Eduardo EP Alchieri. "State machine replication for the masses with BFT-SMART." 2014 44th Annual IEEE/IFIP International Conference on Dependable Systems and Networks. IEEE, 2014.
 
 <!-- TODO: include link to thesis -->
-To read more about the architecture of `bafomet`, you can check out my MsC thesis.
+To read more about the architecture of `bafomet`, a MsC thesis describing it
+in detail is available upon request. Please contact `t1ag0_ at outlook.com`
+if you want a copy.
 
 # How to use this library?
 
