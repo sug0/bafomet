@@ -40,3 +40,5 @@
   epoch must sign the view of the next epoch, whose F
   parameter may be updated; this means that the current
   view must always know the view of the next epoch!
+* batch sig verification
+    * <https://github.com/dalek-cryptography/ed25519-dalek>
